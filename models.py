@@ -4,14 +4,15 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.db.models.signals import post_save
 from django.utils.translation import ugettext as _
+from tastypie.models import create_api_key
 
 
 class Person(models.Model):
-    user = models.OneToOneField(User)
+    user = models.OneToOneField(User, blank=True)
 
     # Fields used for user activation after signup
-    activation_key = models.CharField(max_length=40, null=True)
-    key_expires = models.DateTimeField(null=True)
+    activation_key = models.CharField(max_length=40, blank=True)
+    key_expires = models.DateTimeField(null=True, blank=True)
 
     first_name = models.CharField(max_length=50)
     last_name = models.CharField(max_length=50)
@@ -25,7 +26,7 @@ class Person(models.Model):
     is_player = models.BooleanField(default=True)
     is_exec = models.BooleanField(default=False)
 
-    teams = models.ManyToManyField('Team')
+    teams = models.ManyToManyField('Team', blank=True)
 
     def __unicode__(self):
         return self.first_name + ' ' + self.last_name
@@ -34,9 +35,9 @@ class Person(models.Model):
 class Team(models.Model):
     name = models.CharField(max_length=50)
 
-    league = models.ForeignKey('League')
+    league = models.ForeignKey('League', related_name='league')
     club = models.ForeignKey('Club', related_name='teams')
-    managers = models.ManyToManyField('Person')
+    managers = models.ManyToManyField('Person', blank=True)
 
     def __unicode__(self):
         return self.club.name + ' ' + self.name
@@ -46,7 +47,7 @@ class Club(models.Model):
     name = models.CharField(max_length=50)
 
     union = models.ForeignKey('Union', related_name='clubs')
-    managers = models.ManyToManyField('Person')
+    managers = models.ManyToManyField('Person', blank=True)
 
     def __unicode__(self):
         return self.name
@@ -63,7 +64,7 @@ class League(models.Model):
 class Union(models.Model):
     name = models.CharField(max_length=50)
 
-    managers = models.ManyToManyField('Person')
+    managers = models.ManyToManyField('Person', blank=True)
 
     def __unicode__(self):
         return self.name
@@ -145,4 +146,7 @@ def create_user_profile(sender, instance, created, **kwargs):
     if created:
         Person.objects.create(user=instance, first_name=instance.first_name, last_name=instance.last_name)
 
-post_save.connect(create_user_profile, sender=User)
+# post_save.connect(create_user_profile, sender=User)
+
+# Create API key for a new user
+post_save.connect(create_api_key, sender=User)

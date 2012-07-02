@@ -1,36 +1,55 @@
-from tastypie.resources import ModelResource
+from tastypie.resources import ModelResource, ALL, ALL_WITH_RELATIONS
 from tastypie import fields
 from handball.models import *
 from django.contrib.auth.models import User
 from tastypie.authorization import DjangoAuthorization, Authorization
-from tastypie.authentication import BasicAuthentication
+from tastypie.authentication import BasicAuthentication, Authentication
 
 
 class UnionResource(ModelResource):
-    clubs = fields.ToManyField('handball.api.ClubResource', 'clubs', full=True)
+    # clubs = fields.ToManyField('handball.api.ClubResource', 'clubs', full=True)
+    managers = fields.ToManyField('handball.api.PersonResource', 'managers')
 
     class Meta:
         queryset = Union.objects.all()
-        allowed_methods = ['get', 'post', 'put']
-        authorization = DjangoAuthorization()
+        allowed_methods = ['get', 'post', 'put', 'patch']
+        authorization = Authorization()
         authentication = BasicAuthentication()
+        filtering = {
+            'name': ('exact')
+        }
 
-
-class ClubResource(ModelResource):
-    union = fields.ForeignKey(UnionResource, 'union')
-    teams = fields.ToManyField('handball.api.TeamResource', 'teams')
-
-    class Meta:
-        queryset = Club.objects.all()
-        allowed_methods = ['get', 'post', 'put']
-        authorization = DjangoAuthorization()
+    def obj_create(self, bundle, request=None, **kwargs):
+        # The user to create a union becomes its first manager (for lack of other people)
+        bundle.data['managers'] = ['/api/v1/person/' + str(request.user.get_profile().id) + '/']
+        return super(UnionResource, self).obj_create(bundle, request)
 
 
 class LeagueResource(ModelResource):
     class Meta:
         queryset = Team.objects.all()
         allowed_methods = ['get', 'post', 'put']
-        authorization = DjangoAuthorization()
+        authentication = Authentication()
+        authorization = Authorization()
+
+
+class ClubResource(ModelResource):
+    union = fields.ForeignKey(UnionResource, 'union')
+    # teams = fields.ToManyField('handball.api.TeamResource', 'teams')
+
+    class Meta:
+        queryset = Club.objects.all()
+        allowed_methods = ['get', 'post', 'put']
+        authorization = Authorization()
+        authentication = Authentication()
+        filtering = {
+            'union': ALL_WITH_RELATIONS
+        }
+
+    def obj_create(self, bundle, request=None, **kwargs):
+        # The user to create a club becomes its first manager (for lack of other people)
+        bundle.data['managers'] = ['/api/v1/person/' + str(request.user.get_profile().id) + '/']
+        return super(ClubResource, self).obj_create(bundle, request)
 
 
 class TeamResource(ModelResource):
@@ -39,7 +58,14 @@ class TeamResource(ModelResource):
 
     class Meta:
         queryset = Team.objects.all()
-        authorization = DjangoAuthorization()
+        allowed_methods = ['get', 'post', 'put']
+        authorization = Authorization()
+        authentication = Authentication()
+
+    def obj_create(self, bundle, request=None, **kwargs):
+        # The user to create a team becomes its first manager (for lack of other people)
+        bundle.data['managers'] = ['/api/v1/person/' + str(request.user.get_profile().id) + '/']
+        return super(TeamResource, self).obj_create(bundle, request)
 
 
 class UserResource(ModelResource):
@@ -52,11 +78,12 @@ class UserResource(ModelResource):
 
 class PersonResource(ModelResource):
     user = fields.ForeignKey(UserResource, 'user')
-    teams = fields.ManyToManyField(TeamResource, 'teams')
+    # teams = fields.ManyToManyField(TeamResource, 'teams')
 
     class Meta:
         queryset = Person.objects.all()
         authorization = DjangoAuthorization()
+        excludes = ['activation_key', 'key_expires']
 
 
 class GameTypeResource(ModelResource):
