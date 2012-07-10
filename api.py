@@ -3,7 +3,8 @@ from tastypie import fields
 from handball.models import *
 from django.contrib.auth.models import User
 from tastypie.authorization import DjangoAuthorization, Authorization
-from tastypie.authentication import BasicAuthentication, Authentication
+from tastypie.authentication import BasicAuthentication, Authentication, ApiKeyAuthentication
+from handball.authorization import ManagerAuthorization
 
 
 class UnionResource(ModelResource):
@@ -14,7 +15,7 @@ class UnionResource(ModelResource):
         queryset = Union.objects.all()
         allowed_methods = ['get', 'post', 'put', 'patch']
         authorization = Authorization()
-        authentication = BasicAuthentication()
+        authentication = ApiKeyAuthentication()
         filtering = {
             'name': ('exact')
         }
@@ -29,7 +30,7 @@ class LeagueResource(ModelResource):
     class Meta:
         queryset = Team.objects.all()
         allowed_methods = ['get', 'post', 'put']
-        authentication = Authentication()
+        authentication = ApiKeyAuthentication()
         authorization = Authorization()
 
 
@@ -41,7 +42,7 @@ class ClubResource(ModelResource):
         queryset = Club.objects.all()
         allowed_methods = ['get', 'post', 'put']
         authorization = Authorization()
-        authentication = Authentication()
+        authentication = ApiKeyAuthentication()
         filtering = {
             'union': ALL_WITH_RELATIONS
         }
@@ -60,7 +61,7 @@ class TeamResource(ModelResource):
         queryset = Team.objects.all()
         allowed_methods = ['get', 'post', 'put']
         authorization = Authorization()
-        authentication = Authentication()
+        authentication = ApiKeyAuthentication()
 
     def obj_create(self, bundle, request=None, **kwargs):
         # The user to create a team becomes its first manager (for lack of other people)
@@ -73,7 +74,7 @@ class UserResource(ModelResource):
 
     class Meta:
         queryset = User.objects.all()
-        excludes = ["email", "password"]
+        excludes = ['email', 'password']
 
 
 class PersonResource(ModelResource):
@@ -82,7 +83,8 @@ class PersonResource(ModelResource):
 
     class Meta:
         queryset = Person.objects.all()
-        authorization = DjangoAuthorization()
+        authorization = Authorization()
+        authentication = ApiKeyAuthentication()
         excludes = ['activation_key', 'key_expires']
 
 
@@ -90,14 +92,16 @@ class GameTypeResource(ModelResource):
     class Meta:
         queryset = GameType.objects.all()
         include_resource_uri = False
-        authorization = DjangoAuthorization()
+        authorization = Authorization()
+        authentication = ApiKeyAuthentication()
 
 
 class SiteResource(ModelResource):
     class Meta:
         queryset = Site.objects.all()
         include_resource_uri = False
-        authorization = DjangoAuthorization()
+        authorization = Authorization()
+        authentication = ApiKeyAuthentication()
 
 
 class GameResource(ModelResource):
@@ -116,7 +120,8 @@ class GameResource(ModelResource):
 
     class Meta:
         queryset = Game.objects.all()
-        authorization = DjangoAuthorization()
+        authorization = Authorization()
+        authentication = ApiKeyAuthentication()
 
 
 class EventTypeResource(ModelResource):
@@ -125,7 +130,8 @@ class EventTypeResource(ModelResource):
     class Meta:
         queryset = EventType.objects.all()
         include_resource_uri = False
-        authorization = DjangoAuthorization()
+        authorization = Authorization()
+        authentication = ApiKeyAuthentication()
 
 
 class EventResource(ModelResource):
@@ -134,5 +140,6 @@ class EventResource(ModelResource):
 
     class Meta:
         queryset = Event.objects.all()
-        authorization = DjangoAuthorization()
+        authorization = Authorization()
+        authentication = ApiKeyAuthentication()
         include_resource_uri = False
