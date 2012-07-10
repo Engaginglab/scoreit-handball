@@ -27,8 +27,6 @@ class Person(models.Model):
     is_player = models.BooleanField(default=True)
     is_exec = models.BooleanField(default=False)
 
-    teams = models.ManyToManyField('Team', blank=True)
-
     def __unicode__(self):
         return self.first_name + ' ' + self.last_name
 
@@ -36,6 +34,8 @@ class Person(models.Model):
 class Team(models.Model):
     name = models.CharField(max_length=50)
 
+    players = models.ManyToManyField('Person', blank=True, related_name='teams')
+    coaches = models.ManyToManyField('Person', blank=True, related_name='teams_coaching')
     league = models.ForeignKey('League', related_name='league')
     club = models.ForeignKey('Club', related_name='teams')
     managers = models.ManyToManyField('Person', blank=True)
