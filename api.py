@@ -56,7 +56,7 @@ class ClubResource(ModelResource):
 class TeamResource(ModelResource):
     club = fields.ForeignKey(ClubResource, 'club', full=True)
     league = fields.ForeignKey(LeagueResource, 'league', full=True)
-    players = fields.ManyToManyField('handball.api.PersonResource', full=True)
+    players = fields.ManyToManyField('handball.api.PersonResource', 'players', full=True)
 
     class Meta:
         queryset = Team.objects.all()
