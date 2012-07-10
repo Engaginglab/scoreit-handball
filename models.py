@@ -16,11 +16,12 @@ class Person(models.Model):
 
     first_name = models.CharField(max_length=50)
     last_name = models.CharField(max_length=50)
-    adress = models.CharField(max_length=50, blank=True)
+    address = models.CharField(max_length=50, blank=True)
     city = models.CharField(max_length=50, blank=True)
     zip_code = models.IntegerField(null=True, blank=True)
     birthday = models.DateField(null=True, blank=True)
     pass_number = models.IntegerField(unique=True, null=True, blank=True)
+    gender = models.CharField(max_length=10, choices=(('male', _('male')), ('female', _('female'))), default='male')
     is_coach = models.BooleanField(default=False)
     is_referee = models.BooleanField(default=False)
     is_player = models.BooleanField(default=True)
