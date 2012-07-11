@@ -28,7 +28,7 @@ class UnionResource(ModelResource):
 
 class LeagueResource(ModelResource):
     class Meta:
-        queryset = Team.objects.all()
+        queryset = League.objects.all()
         allowed_methods = ['get', 'post', 'put']
         authentication = ApiKeyAuthentication()
         authorization = Authorization()
