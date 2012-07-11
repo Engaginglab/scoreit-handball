@@ -22,6 +22,7 @@ class Person(models.Model):
     birthday = models.DateField(null=True, blank=True)
     pass_number = models.IntegerField(unique=True, null=True, blank=True)
     gender = models.CharField(max_length=10, choices=(('male', _('male')), ('female', _('female'))), default='male')
+    mobile_number = models.CharField(max_length=20, blank=True)
     is_coach = models.BooleanField(default=False)
     is_referee = models.BooleanField(default=False)
     is_player = models.BooleanField(default=True)
