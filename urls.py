@@ -24,6 +24,6 @@ urlpatterns += patterns('', (r'^api/', include(v1_api.urls)))
 # Non-resource api endpoints
 urlpatterns += patterns('handball.api',
     (r'^api/v1/auth/validate/$', 'validate_user'),
-    (r'^api/v1/auth/exists/$', 'user_exists')
+    (r'^api/v1/auth/unique/$', 'is_unique')
     #(r'^api/v1/auth/signup/$', 'sign_up')
 )

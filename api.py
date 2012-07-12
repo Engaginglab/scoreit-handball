@@ -83,14 +83,19 @@ class UserResource(ModelResource):
 
 
 class PersonResource(ModelResource):
-    user = fields.ForeignKey(UserResource, 'user')
+    user = fields.ForeignKey(UserResource, 'user', blank=True, null=True)
     # teams = fields.ManyToManyField(TeamResource, 'teams')
 
     class Meta:
         queryset = Person.objects.all()
         authorization = Authorization()
-        authentication = ApiKeyAuthentication()
+        authentication = Authentication()
         excludes = ['activation_key', 'key_expires']
+        filtering = {
+            'user': ALL_WITH_RELATIONS,
+            'first_name': ['exact'],
+            'last_name': ['exact']
+        }
 
 
 class GameTypeResource(ModelResource):
@@ -155,6 +160,58 @@ Non-resource api endpoints
 """
 
 
+def sign_up(request):
+    form = SignUpForm(request.POST)
+    if form.is_valid():
+        username = form.cleaned_data['username']
+        password = form.cleaned_data['password']
+        email = form.cleaned_data['email']
+        gender = form.cleaned_data['gender']
+        first_name = form.cleaned_data['first_name']
+        last_name = form.cleaned_data['last_name']
+        pass_number = form.cleaned_data['pass_number']
+        address = form.cleaned_data['address']
+        city = form.cleaned_data['city']
+        zip_code = form.cleaned_data['zip_code']
+        mobile_number = form.cleaned_data['mobile_number']
+
+        user = User.objects.create(username=username, password=password, email=email)
+
+        profile = form.cleaned_data['profile'] or Person.objects.create(user=user)
+        profile.first_name = first_name
+        profile.last_name = last_name
+        profile.gender = gender
+        profile.pass_number = pass_number
+        profile.address = address
+        profile.city = city
+        profile.zip_code = zip_code
+        profile.mobile_number = mobile_number
+        profile.save()
+
+        # Build the activation key
+        salt = sha.new(str(random())).hexdigest()[:5]
+        activation_key = sha.new(salt + user.username).hexdigest()
+        key_expires = datetime.datetime.now(pytz.utc) + datetime.timedelta(2)
+
+        # User is unactive until visiting activation link
+        user.is_active = False
+        user_profile.activation_key = activation_key
+        user_profile.key_expires = key_expires
+        activation_link = 'http://127.0.0.1/activate/' + activation_key
+
+        user.save()
+        user_profile.save()
+
+        from django.core.mail import send_mail
+        subject = _('Welcome to ScoreIt!')
+        message = _('To activate, please click the following link:\n' + activation_link)
+        sender = _('noreply@score-it.de')
+        recipients = [email]
+        send_mail(subject, message, sender, recipients)
+
+    return HttpResponse()
+
+
 def validate_user(request):
     """
     Checks a user's basic auth credentials and, if valid, returns the users data
@@ -199,30 +256,47 @@ def validate_user(request):
     return HttpResponse(person_resource.serialize(None, bundle, 'application/json'))
 
 
-def user_exists(request):
-    username = request.GET['username']
-    email = request.GET['email']
-    username_exists = True
-    email_exists = True
+def is_unique(request):
+    data = {}
 
-    try:
-        User.objects.get(username=username)
-    except User.DoesNotExist:
-        username_exists = False
-    except User.MultipleObjectsReturned:
-        email_exists = True
+    if 'user_name' in request.GET:
+        user_name = request.GET['user_name']
 
-    try:
-        User.objects.get(email=email)
-    except User.DoesNotExist:
-        email_exists = False
-    except User.MultipleObjectsReturned:
-        email_exists = True
+        try:
+            User.objects.get(username=user_name)
+            unique = False
+        except User.DoesNotExist:
+            unique = True
+        except User.MultipleObjectsReturned:
+            unique = False
 
-    data = {
-        'username': username_exists,
-        'email': email_exists
-    }
+        data['user_name'] = unique
+
+    if 'email' in request.GET:
+        email = request.GET['email']
+
+        try:
+            User.objects.get(email=email)
+            unique = False
+        except User.DoesNotExist:
+            unique = True
+        except User.MultipleObjectsReturned:
+            unique = False
+
+        data['email'] = unique
+
+    if 'pass_number' in request.GET:
+        pass_number = request.GET['pass_number']
+
+        try:
+            Person.objects.get(pass_number=pass_number)
+            unique = False
+        except Person.DoesNotExist:
+            unique = True
+        except Person.MultipleObjectsReturned:
+            unique = False
+
+        data['pass_number'] = unique
 
     serializer = Serializer()
 
