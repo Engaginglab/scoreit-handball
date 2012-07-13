@@ -1,14 +1,20 @@
+import sha
+import datetime
+from random import random
+import pytz
 from tastypie.resources import ModelResource, ALL, ALL_WITH_RELATIONS
 from tastypie import fields
 from handball.models import *
+from handball.forms import SignUpForm
 from django.contrib.auth.models import User
 from tastypie.authorization import DjangoAuthorization, Authorization
-from tastypie.authentication import BasicAuthentication, Authentication, ApiKeyAuthentication
-from handball.authorization import ManagerAuthorization
+from tastypie.authentication import Authentication, ApiKeyAuthentication
 from django.contrib.auth import authenticate
-from django.http import HttpResponse, HttpResponseRedirect, HttpResponseNotFound, HttpResponseBadRequest
+from django.core.mail import send_mail
+from django.http import HttpResponse, HttpResponseNotFound, HttpResponseBadRequest
 from tastypie.serializers import Serializer
 from tastypie.utils.mime import determine_format
+from django.utils.translation import ugettext as _
 
 
 class UnionResource(ModelResource):
@@ -162,6 +168,9 @@ Non-resource api endpoints
 
 def sign_up(request):
     form = SignUpForm(request.POST)
+    serializer = Serializer()
+    format = determine_format(request, serializer, default_format='application/json')
+
     if form.is_valid():
         username = form.cleaned_data['username']
         password = form.cleaned_data['password']
@@ -175,7 +184,7 @@ def sign_up(request):
         zip_code = form.cleaned_data['zip_code']
         mobile_number = form.cleaned_data['mobile_number']
 
-        user = User.objects.create(username=username, password=password, email=email)
+        user = User.objects.create(username=username, password=password, first_name=first_name, last_name=last_name, email=email)
 
         profile = form.cleaned_data['profile'] or Person.objects.create(user=user)
         profile.first_name = first_name
@@ -186,7 +195,6 @@ def sign_up(request):
         profile.city = city
         profile.zip_code = zip_code
         profile.mobile_number = mobile_number
-        profile.save()
 
         # Build the activation key
         salt = sha.new(str(random())).hexdigest()[:5]
@@ -195,21 +203,32 @@ def sign_up(request):
 
         # User is unactive until visiting activation link
         user.is_active = False
-        user_profile.activation_key = activation_key
-        user_profile.key_expires = key_expires
-        activation_link = 'http://127.0.0.1/activate/' + activation_key
+        profile.activation_key = activation_key
+        profile.key_expires = key_expires
+        activation_link = 'http://127.0.0.1:8000/auth/activate/' + activation_key
 
         user.save()
-        user_profile.save()
+        profile.save()
 
-        from django.core.mail import send_mail
         subject = _('Welcome to ScoreIt!')
         message = _('To activate, please click the following link:\n' + activation_link)
         sender = _('noreply@score-it.de')
         recipients = [email]
         send_mail(subject, message, sender, recipients)
 
-    return HttpResponse()
+        user_resource = UserResource()
+        person_resource = PersonResource()
+
+        data = {
+            'user': user_resource.get_resource_uri(user),
+            'profile': person_resource.get_resource_uri(profile),
+            'activation_key': activation_key
+        }
+
+        return HttpResponse(serializer.serialize(data, format, {}))
+
+    else:
+        return HttpResponseBadRequest(serializer.serialize(form.errors, format, {}))
 
 
 def validate_user(request):

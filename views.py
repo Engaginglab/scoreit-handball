@@ -1,5 +1,4 @@
 import sha
-import base64
 import datetime
 import pytz
 from random import random
