@@ -186,7 +186,7 @@ def sign_up(request):
 
         user = User.objects.create(username=username, password=password, first_name=first_name, last_name=last_name, email=email)
 
-        profile = form.cleaned_data['profile'] or Person.objects.create(user=user)
+        profile = form.cleaned_data['profile'] or Person.objects.create()
         profile.first_name = first_name
         profile.last_name = last_name
         profile.gender = gender
@@ -195,6 +195,7 @@ def sign_up(request):
         profile.city = city
         profile.zip_code = zip_code
         profile.mobile_number = mobile_number
+        profile.user = user
 
         # Build the activation key
         salt = sha.new(str(random())).hexdigest()[:5]
