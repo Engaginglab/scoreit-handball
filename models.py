@@ -9,6 +9,7 @@ from tastypie.models import create_api_key
 
 class Person(models.Model):
     user = models.OneToOneField(User, blank=True)
+    club = models.ForeignKey('Club', related_name='members', blank=True)
 
     # Fields used for user activation after signup
     activation_key = models.CharField(max_length=40, blank=True)
@@ -39,7 +40,7 @@ class Team(models.Model):
     coaches = models.ManyToManyField('Person', blank=True, related_name='teams_coaching')
     league = models.ForeignKey('League', related_name='league')
     club = models.ForeignKey('Club', related_name='teams')
-    managers = models.ManyToManyField('Person', blank=True)
+    managers = models.ManyToManyField('Person', blank=True, related_name='teams_managed')
 
     def __unicode__(self):
         return self.club.name + ' ' + self.name
@@ -49,7 +50,7 @@ class Club(models.Model):
     name = models.CharField(max_length=50)
 
     union = models.ForeignKey('Union', related_name='clubs')
-    managers = models.ManyToManyField('Person', blank=True)
+    managers = models.ManyToManyField('Person', blank=True, related_name='clubs_managed')
 
     def __unicode__(self):
         return self.name
@@ -66,7 +67,7 @@ class League(models.Model):
 class Union(models.Model):
     name = models.CharField(max_length=50)
 
-    managers = models.ManyToManyField('Person', blank=True)
+    managers = models.ManyToManyField('Person', blank=True, related_name='unions_managed')
 
     def __unicode__(self):
         return self.name

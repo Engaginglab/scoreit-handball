@@ -25,7 +25,7 @@ class UnionResource(ModelResource):
         queryset = Union.objects.all()
         allowed_methods = ['get', 'post', 'put', 'patch']
         authorization = Authorization()
-        authentication = ApiKeyAuthentication()
+        authentication = Authentication()
         filtering = {
             'name': ('exact')
         }
@@ -40,19 +40,19 @@ class LeagueResource(ModelResource):
     class Meta:
         queryset = League.objects.all()
         allowed_methods = ['get', 'post', 'put']
-        authentication = ApiKeyAuthentication()
+        authentication = Authentication()
         authorization = Authorization()
 
 
 class ClubResource(ModelResource):
-    union = fields.ForeignKey(UnionResource, 'union')
+    union = fields.ForeignKey(UnionResource, 'union', full=True)
     # teams = fields.ToManyField('handball.api.TeamResource', 'teams')
 
     class Meta:
         queryset = Club.objects.all()
         allowed_methods = ['get', 'post', 'put']
         authorization = Authorization()
-        authentication = ApiKeyAuthentication()
+        authentication = Authentication()
         filtering = {
             'union': ALL_WITH_RELATIONS
         }
@@ -72,12 +72,16 @@ class TeamResource(ModelResource):
         queryset = Team.objects.all()
         allowed_methods = ['get', 'post', 'put']
         authorization = Authorization()
-        authentication = ApiKeyAuthentication()
+        authentication = Authentication()
 
     def obj_create(self, bundle, request=None, **kwargs):
         # The user to create a team becomes its first manager (for lack of other people)
         bundle.data['managers'] = ['/api/v1/person/' + str(request.user.get_profile().id) + '/']
         return super(TeamResource, self).obj_create(bundle, request)
+
+    def dehydrate(self, bundle):
+        bundle.data['display_name'] = str(bundle.obj)
+        return bundle
 
 
 class UserResource(ModelResource):
@@ -103,13 +107,17 @@ class PersonResource(ModelResource):
             'last_name': ['exact']
         }
 
+    def dehydrate(self, bundle):
+        bundle.data['display_name'] = str(bundle.obj)
+        return bundle
+
 
 class GameTypeResource(ModelResource):
     class Meta:
         queryset = GameType.objects.all()
         include_resource_uri = False
         authorization = Authorization()
-        authentication = ApiKeyAuthentication()
+        authentication = Authentication()
 
 
 class SiteResource(ModelResource):
@@ -117,7 +125,7 @@ class SiteResource(ModelResource):
         queryset = Site.objects.all()
         include_resource_uri = False
         authorization = Authorization()
-        authentication = ApiKeyAuthentication()
+        authentication = Authentication()
 
 
 class GameResource(ModelResource):
@@ -137,7 +145,7 @@ class GameResource(ModelResource):
     class Meta:
         queryset = Game.objects.all()
         authorization = Authorization()
-        authentication = ApiKeyAuthentication()
+        authentication = Authentication()
 
 
 class EventTypeResource(ModelResource):
@@ -147,7 +155,7 @@ class EventTypeResource(ModelResource):
         queryset = EventType.objects.all()
         include_resource_uri = False
         authorization = Authorization()
-        authentication = ApiKeyAuthentication()
+        authentication = Authentication()
 
 
 class EventResource(ModelResource):
