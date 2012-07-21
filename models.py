@@ -2,14 +2,14 @@
 
 from django.db import models
 from django.contrib.auth.models import User
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, pre_save
 from django.utils.translation import ugettext as _
 from tastypie.models import create_api_key
 
 
 class Person(models.Model):
     user = models.OneToOneField(User, blank=True)
-    club = models.ForeignKey('Club', related_name='members', blank=True)
+    clubs = models.ManyToManyField('Club', related_name='members', blank=False)
 
     # Fields used for user activation after signup
     activation_key = models.CharField(max_length=40, blank=True)
@@ -59,6 +59,39 @@ class Club(models.Model):
 class League(models.Model):
     name = models.CharField(max_length=50)
     gender = models.CharField(max_length=10, choices=(('male', _('male')), ('female', _('female'))))
+    age_group = models.CharField(max_length=20, choices=(('adults', _('adults')), ('juniors', _('juniors')), ('kids', _('kids'))))
+
+    union = models.ForeignKey('Union', related_name='leagues', blank=True)
+    district = models.ForeignKey('District', related_name='leagues', blank=True)
+    managers = models.ManyToManyField('Person', blank=True, related_name='leagues_managed')
+
+    def __unicode__(self):
+        return self.name
+
+
+class LeagueTemplate(models.Model):
+    name = models.CharField(max_length=50)
+    gender = models.CharField(max_length=10, choices=(('male', _('male')), ('female', _('female'))))
+    age_group = models.CharField(max_length=20, choices=(('adults', _('adults')), ('juniors', _('juniors')), ('kids', _('kids'))))
+
+    def __unicode__(self):
+        return self.name
+
+
+class Group(models.Model):
+    name = models.CharField(max_length=50)
+
+    union = models.ForeignKey('Union', related_name='groups', blank=True)
+    district = models.ForeignKey('District', related_name='groups', blank=True)
+    league = models.ForeignKey('League', related_name='groups', blank=True)
+    teams = models.ManyToManyField('Team', related_name='groups', blank=True)
+
+
+class District(models.Model):
+    name = models.CharField(max_length=50)
+
+    union = models.ForeignKey('Union', related_name='districts')
+    managers = models.ManyToManyField('Person', blank=True, related_name='districts_managed')
 
     def __unicode__(self):
         return self.name
@@ -85,8 +118,9 @@ class Game(models.Model):
     timer = models.ForeignKey('Person', related_name='games_as_timer')
     secretary = models.ForeignKey('Person', related_name='games_as_secretary')
     winner = models.ForeignKey('Team', related_name='games_won')
-    union = models.ForeignKey('Union')
-    league = models.ForeignKey('League')
+    # union = models.ForeignKey('Union')
+    # league = models.ForeignKey('League')
+    group = models.ForeignKey('Group', related_name='games')
     game_type = models.ForeignKey('GameType')
     site = models.ForeignKey('Site')
     players = models.ManyToManyField('Person', through='PlayerGameRelation')
@@ -149,7 +183,24 @@ def create_user_profile(sender, instance, created, **kwargs):
     if created:
         Person.objects.create(user=instance, first_name=instance.first_name, last_name=instance.last_name)
 
+
+def create_default_leagues(sender, instance, created, **kwargs):
+    # Create defaults leagues for District after creation
+    if created:
+        templates = LeagueTemplate.objects.all()
+
+        for template in templates:
+            League.objects.create(name=template.name, gender=template.gender, age_group=template.age_group, district=instance)
+
+
+def set_union_by_district(sender, instance, **kwargs):
+    # Set according union if district is set
+    if instance.district:
+        instance.union = instance.district.union
+
 # post_save.connect(create_user_profile, sender=User)
 
 # Create API key for a new user
 post_save.connect(create_api_key, sender=User)
+post_save.connect(create_default_leagues, sender=District)
+pre_save.connect(set_union_by_district, sender=League)
