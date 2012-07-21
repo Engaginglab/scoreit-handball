@@ -8,12 +8,8 @@ from tastypie.models import create_api_key
 
 
 class Person(models.Model):
-    user = models.OneToOneField(User, blank=True, null=True)
+    user = models.OneToOneField(User, blank=True, null=True, related_name='handball_profile')
     clubs = models.ManyToManyField('Club', related_name='members', blank=False)
-
-    # Fields used for user activation after signup
-    activation_key = models.CharField(max_length=40, blank=True)
-    key_expires = models.DateTimeField(null=True, blank=True)
 
     first_name = models.CharField(max_length=50)
     last_name = models.CharField(max_length=50)
@@ -178,12 +174,6 @@ class EventType(models.Model):
         return self.name
 
 
-def create_user_profile(sender, instance, created, **kwargs):
-    # Create user profile for user after creation
-    if created:
-        Person.objects.create(user=instance, first_name=instance.first_name, last_name=instance.last_name)
-
-
 def create_default_leagues(sender, instance, created, **kwargs):
     # Create defaults leagues for District after creation
     if created:
@@ -198,7 +188,6 @@ def set_union_by_district(sender, instance, **kwargs):
     if instance.district:
         instance.union = instance.district.union
 
-# post_save.connect(create_user_profile, sender=User)
 
 # Create API key for a new user
 post_save.connect(create_api_key, sender=User)
