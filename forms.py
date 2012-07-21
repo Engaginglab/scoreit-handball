@@ -12,15 +12,15 @@ class SignUpForm(forms.Form):
     # password_repeat = forms.CharField(widget=forms.PasswordInput,
     #     label=_('Repeat Password'), required=True)
 
-    gender = forms.ChoiceField(choices=(('male', _('male')), ('female', _('female'))))
     first_name = forms.CharField(label=_('First Name'), required=True)
     last_name = forms.CharField(label=_('Last Name'), required=True)
     profile = forms.ModelChoiceField(required=False, queryset=Person.objects.filter(user__isnull=True))
-    pass_number = forms.IntegerField(label=_('Pass Number'), required=False)
-    address = forms.CharField(label=_('Address'), required=False)
-    city = forms.CharField(label=_('City'), required=False)
-    zip_code = forms.IntegerField(label=_('Zip Code'), required=False)
-    mobile_number = forms.CharField(label=_('Mobile Number'), required=False)
+    # gender = forms.ChoiceField(choices=(('male', _('male')), ('female', _('female'))))
+    # pass_number = forms.IntegerField(label=_('Pass Number'), required=False)
+    # address = forms.CharField(label=_('Address'), required=False)
+    # city = forms.CharField(label=_('City'), required=False)
+    # zip_code = forms.IntegerField(label=_('Zip Code'), required=False)
+    # mobile_number = forms.CharField(label=_('Mobile Number'), required=False)
 
     def clean_username(self):
         data = self.cleaned_data['username']
@@ -39,22 +39,22 @@ class SignUpForm(forms.Form):
         raise forms.ValidationError(
             _('A user with this email is already registered.'))
 
-    def clean(self):
-        cleaned_data = super(SignUpForm, self).clean()
-        pass_number = cleaned_data['pass_number']
-        profile = cleaned_data['profile'] or {'id': None}
+    # def clean(self):
+    #     cleaned_data = super(SignUpForm, self).clean()
+    #     pass_number = cleaned_data['pass_number']
+    #     profile_id = cleaned_data['profile'].id if cleaned_data['profile'] else None
 
-        # check if pass number is unique
-        try:
-            Person.objects.exclude(id=profile.id).get(pass_number=pass_number)
-        except Person.DoesNotExist:
-            return cleaned_data
+    #     # check if pass number is unique
+    #     try:
+    #         Person.objects.exclude(id=profile_id).get(pass_number=pass_number)
+    #     except Person.DoesNotExist:
+    #         return cleaned_data
 
-        msg = _('A user with this pass number does already exist!')
-        self._errors['pass_number'] = self.error_class([msg])
-        del cleaned_data['pass_number']
+    #     msg = _('A user with this pass number does already exist!')
+    #     self._errors['pass_number'] = self.error_class([msg])
+    #     del cleaned_data['pass_number']
 
-        return cleaned_data
+    #     return cleaned_data
 
     # def clean(self):
     #     cleaned_data = super(SignUpForm, self).clean()

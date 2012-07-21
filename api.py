@@ -23,7 +23,7 @@ class UnionResource(ModelResource):
 
     class Meta:
         queryset = Union.objects.all()
-        allowed_methods = ['get', 'post', 'put', 'patch']
+        allowed_methods = ['get']
         authorization = Authorization()
         authentication = Authentication()
         filtering = {
@@ -36,16 +36,33 @@ class UnionResource(ModelResource):
         return super(UnionResource, self).obj_create(bundle, request)
 
 
+class DistrictResource(ModelResource):
+    union = fields.ForeignKey(UnionResource, 'union', full=True)
+
+    class Meta:
+        queryset = District.objects.all()
+        allowed_methods = ['get']
+        authorization = Authorization()
+        authentication = Authentication()
+        filtering = {
+            'union': ALL_WITH_RELATIONS
+        }
+
+    def dehydrate(self, bundle):
+        bundle.data['display_name'] = str(bundle.obj)
+        return bundle
+
+
 class LeagueResource(ModelResource):
     class Meta:
         queryset = League.objects.all()
-        allowed_methods = ['get', 'post', 'put']
+        allowed_methods = ['get']
         authentication = Authentication()
         authorization = Authorization()
 
 
 class ClubResource(ModelResource):
-    union = fields.ForeignKey(UnionResource, 'union', full=True)
+    district = fields.ForeignKey(DistrictResource, 'district', full=True)
     # teams = fields.ToManyField('handball.api.TeamResource', 'teams')
 
     class Meta:
@@ -59,7 +76,7 @@ class ClubResource(ModelResource):
 
     def obj_create(self, bundle, request=None, **kwargs):
         # The user to create a club becomes its first manager (for lack of other people)
-        bundle.data['managers'] = ['/api/v1/person/' + str(request.user.get_profile().id) + '/']
+        # bundle.data['managers'] = ['/api/v1/person/' + str(request.user.get_profile().id) + '/']
         return super(ClubResource, self).obj_create(bundle, request)
 
 
@@ -94,6 +111,7 @@ class UserResource(ModelResource):
 
 class PersonResource(ModelResource):
     user = fields.ForeignKey(UserResource, 'user', blank=True, null=True)
+    clubs = fields.ManyToManyField(ClubResource, 'clubs')
     # teams = fields.ManyToManyField(TeamResource, 'teams')
 
     class Meta:
@@ -183,26 +201,26 @@ def sign_up(request):
         username = form.cleaned_data['username']
         password = form.cleaned_data['password']
         email = form.cleaned_data['email']
-        gender = form.cleaned_data['gender']
         first_name = form.cleaned_data['first_name']
         last_name = form.cleaned_data['last_name']
-        pass_number = form.cleaned_data['pass_number']
-        address = form.cleaned_data['address']
-        city = form.cleaned_data['city']
-        zip_code = form.cleaned_data['zip_code']
-        mobile_number = form.cleaned_data['mobile_number']
+        # gender = form.cleaned_data['gender']
+        # pass_number = form.cleaned_data['pass_number']
+        # address = form.cleaned_data['address']
+        # city = form.cleaned_data['city']
+        # zip_code = form.cleaned_data['zip_code']
+        # mobile_number = form.cleaned_data['mobile_number']
 
         user = User.objects.create(username=username, password=password, first_name=first_name, last_name=last_name, email=email)
 
         profile = form.cleaned_data['profile'] or Person.objects.create()
         profile.first_name = first_name
         profile.last_name = last_name
-        profile.gender = gender
-        profile.pass_number = pass_number
-        profile.address = address
-        profile.city = city
-        profile.zip_code = zip_code
-        profile.mobile_number = mobile_number
+        # profile.gender = gender
+        # profile.pass_number = pass_number
+        # profile.address = address
+        # profile.city = city
+        # profile.zip_code = zip_code
+        # profile.mobile_number = mobile_number
         profile.user = user
 
         # Build the activation key

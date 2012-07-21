@@ -8,7 +8,7 @@ from tastypie.models import create_api_key
 
 
 class Person(models.Model):
-    user = models.OneToOneField(User, blank=True)
+    user = models.OneToOneField(User, blank=True, null=True)
     clubs = models.ManyToManyField('Club', related_name='members', blank=False)
 
     # Fields used for user activation after signup
@@ -49,7 +49,7 @@ class Team(models.Model):
 class Club(models.Model):
     name = models.CharField(max_length=50)
 
-    union = models.ForeignKey('Union', related_name='clubs')
+    district = models.ForeignKey('District', related_name='clubs')
     managers = models.ManyToManyField('Person', blank=True, related_name='clubs_managed')
 
     def __unicode__(self):
