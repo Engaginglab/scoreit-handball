@@ -33,8 +33,8 @@ class Team(models.Model):
     name = models.CharField(max_length=50)
 
     players = models.ManyToManyField('Person', blank=True, related_name='teams')
-    coaches = models.ManyToManyField('Person', blank=True, related_name='teams_coaching')
-    league = models.ForeignKey('League', related_name='league')
+    coaches = models.ManyToManyField('Person', blank=True, related_name='teams_coached')
+    # league = models.ForeignKey('League', related_name='league', blank=True)
     club = models.ForeignKey('Club', related_name='teams')
     managers = models.ManyToManyField('Person', blank=True, related_name='teams_managed')
 
