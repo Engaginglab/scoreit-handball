@@ -11,9 +11,6 @@ from auth.api import UserResource
 
 
 class UnionResource(ModelResource):
-    # clubs = fields.ToManyField('handball.api.ClubResource', 'clubs', full=True)
-    managers = fields.ToManyField('handball.api.PersonResource', 'managers')
-
     class Meta:
         queryset = Union.objects.all()
         allowed_methods = ['get']
@@ -30,7 +27,7 @@ class UnionResource(ModelResource):
 
 
 class DistrictResource(ModelResource):
-    union = fields.ForeignKey(UnionResource, 'union', full=True)
+    union = fields.ForeignKey(UnionResource, 'union')
 
     class Meta:
         queryset = District.objects.all()
@@ -57,6 +54,7 @@ class LeagueResource(ModelResource):
 class ClubResource(ModelResource):
     district = fields.ForeignKey(DistrictResource, 'district', full=True)
     # teams = fields.ToManyField('handball.api.TeamResource', 'teams')
+    managers = fields.ToManyField('handball.api.PersonResource', 'managers')
 
     class Meta:
         queryset = Club.objects.all()
@@ -75,8 +73,9 @@ class ClubResource(ModelResource):
 
 class TeamResource(ModelResource):
     club = fields.ForeignKey(ClubResource, 'club', full=True)
-    league = fields.ForeignKey(LeagueResource, 'league', full=True)
-    players = fields.ManyToManyField('handball.api.PersonResource', 'players', full=True)
+    players = fields.ManyToManyField('handball.api.PersonResource', 'players')
+    coaches = fields.ManyToManyField('handball.api.PersonResource', 'coaches')
+    managers = fields.ManyToManyField('handball.api.PersonResource', 'managers')
 
     class Meta:
         queryset = Team.objects.all()
@@ -97,7 +96,10 @@ class TeamResource(ModelResource):
 class PersonResource(ModelResource):
     user = fields.OneToOneField(UserResource, 'user', blank=True, null=True)
     clubs = fields.ManyToManyField(ClubResource, 'clubs')
-    # teams = fields.ManyToManyField(TeamResource, 'teams')
+    clubs_managed = fields.ManyToManyField(ClubResource, 'clubs_managed', blank=True)
+    teams = fields.ManyToManyField(TeamResource, 'teams', blank=True)
+    teams_managed = fields.ManyToManyField(TeamResource, 'teams_managed', blank=True)
+    teams_coached = fields.ManyToManyField(TeamResource, 'teams_coached', blank=True)
 
     class Meta:
         queryset = Person.objects.all()
@@ -106,12 +108,22 @@ class PersonResource(ModelResource):
         excludes = ['activation_key', 'key_expires']
         filtering = {
             'user': ALL_WITH_RELATIONS,
+            'clubs': ALL_WITH_RELATIONS,
+            'clubs_managed': ALL_WITH_RELATIONS,
+            'teams': ALL_WITH_RELATIONS,
+            'teams_managed': ALL_WITH_RELATIONS,
+            'teams_coached': ALL_WITH_RELATIONS,
             'first_name': ['exact'],
             'last_name': ['exact']
         }
 
     def dehydrate(self, bundle):
         bundle.data['display_name'] = str(bundle.obj)
+        # del bundle.data['clubs']
+        del bundle.data['clubs_managed']
+        del bundle.data['teams']
+        del bundle.data['teams_managed']
+        del bundle.data['teams_coached']
         return bundle
 
 
