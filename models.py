@@ -2,7 +2,7 @@
 
 from django.db import models
 from django.contrib.auth.models import User
-from django.db.models.signals import post_save, pre_save
+from django.db.models.signals import post_save, pre_save, m2m_changed
 from django.utils.translation import ugettext as _
 from tastypie.models import create_api_key
 
@@ -184,12 +184,21 @@ def create_default_leagues(sender, instance, created, **kwargs):
 
 
 def set_union_by_district(sender, instance, **kwargs):
-    # Set according union if district is set
+    # If district is set, set according union
     if instance.district:
         instance.union = instance.district.union
+
+
+def set_club_by_team(sender, instance, action, reverse, model, pk_set, **kwargs):
+    if action == 'post_add':
+        for pk in pk_set:
+            player = model.objects.get(pk=pk)
+            player.clubs.add(instance.club)
+            player.save()
 
 
 # Create API key for a new user
 post_save.connect(create_api_key, sender=User)
 post_save.connect(create_default_leagues, sender=District)
 pre_save.connect(set_union_by_district, sender=League)
+m2m_changed.connect(set_club_by_team, sender=Team.players.through)
