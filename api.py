@@ -22,7 +22,7 @@ class UnionResource(ModelResource):
 
     def obj_create(self, bundle, request=None, **kwargs):
         # The user to create a union becomes its first manager (for lack of other people)
-        bundle.data['managers'] = ['/api/v1/person/' + str(request.user.get_profile().id) + '/']
+        bundle.data['managers'] = ['/handball/api/v1/person/' + str(request.user.get_profile().id) + '/']
         return super(UnionResource, self).obj_create(bundle, request)
 
 
@@ -37,6 +37,11 @@ class DistrictResource(ModelResource):
         filtering = {
             'union': ALL_WITH_RELATIONS
         }
+
+    def obj_create(self, bundle, request=None, **kwargs):
+        # The user to create a union becomes its first manager (for lack of other people)
+        bundle.data['managers'] = ['/handball/api/v1/person/' + str(request.user.get_profile().id) + '/']
+        return super(DistrictResource, self).obj_create(bundle, request)
 
     def dehydrate(self, bundle):
         bundle.data['display_name'] = str(bundle.obj)
@@ -67,7 +72,7 @@ class ClubResource(ModelResource):
 
     def obj_create(self, bundle, request=None, **kwargs):
         # The user to create a club becomes its first manager (for lack of other people)
-        # bundle.data['managers'] = ['/api/v1/person/' + str(request.user.get_profile().id) + '/']
+        bundle.data['managers'] = ['/handball/api/v1/person/' + str(request.user.get_profile().id) + '/']
         return super(ClubResource, self).obj_create(bundle, request)
 
 
@@ -85,7 +90,7 @@ class TeamResource(ModelResource):
 
     def obj_create(self, bundle, request=None, **kwargs):
         # The user to create a team becomes its first manager (for lack of other people)
-        bundle.data['managers'] = ['/api/v1/person/' + str(request.user.get_profile().id) + '/']
+        bundle.data['managers'] = ['/handball/api/v1/person/' + str(request.user.get_profile().id) + '/']
         return super(TeamResource, self).obj_create(bundle, request)
 
     def dehydrate(self, bundle):
