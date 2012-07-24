@@ -9,7 +9,7 @@ from tastypie.models import create_api_key
 
 class Person(models.Model):
     user = models.OneToOneField(User, blank=True, null=True, related_name='handball_profile')
-    clubs = models.ManyToManyField('Club', related_name='members', blank=False)
+    clubs = models.ManyToManyField('Club', related_name='members', blank=False, through='MemberClubRelation')
 
     first_name = models.CharField(max_length=50)
     last_name = models.CharField(max_length=50)
@@ -32,8 +32,8 @@ class Person(models.Model):
 class Team(models.Model):
     name = models.CharField(max_length=50)
 
-    players = models.ManyToManyField('Person', blank=True, related_name='teams')
-    coaches = models.ManyToManyField('Person', blank=True, related_name='teams_coached')
+    players = models.ManyToManyField('Person', blank=True, related_name='teams', through='TeamPlayerRelation')
+    coaches = models.ManyToManyField('Person', blank=True, related_name='teams_coached', through='TeamCoachRelation')
     # league = models.ForeignKey('League', related_name='league', blank=True)
     club = models.ForeignKey('Club', related_name='teams')
     managers = models.ManyToManyField('Person', blank=True, related_name='teams_managed')
@@ -156,6 +156,31 @@ class PlayerGameRelation(models.Model):
     team_penalties = models.IntegerField()
     penalty_shots_hit = models.IntegerField()
     penalty_shots_miss = models.IntegerField()
+
+
+class MemberClubRelation(models.Model):
+    member = models.ForeignKey('Person')
+    club = models.ForeignKey('Club')
+
+    primary = models.BooleanField()
+    member_confirmed = models.BooleanField(default=False)
+    manager_confirmed = models.BooleanField(default=False)
+
+
+class TeamPlayerRelation(models.Model):
+    player = models.ForeignKey('Person')
+    team = models.ForeignKey('Team')
+
+    player_confirmed = models.BooleanField(default=False)
+    manager_confirmed = models.BooleanField(default=False)
+
+
+class TeamCoachRelation(models.Model):
+    coach = models.ForeignKey('Person')
+    team = models.ForeignKey('Team')
+
+    member_confirmed = models.BooleanField(default=False)
+    manager_confirmed = models.BooleanField(default=False)
 
 
 class Event(models.Model):
