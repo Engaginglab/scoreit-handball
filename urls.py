@@ -11,6 +11,7 @@ v1_api.register(PersonResource())
 v1_api.register(GameResource())
 v1_api.register(LeagueResource())
 v1_api.register(DistrictResource())
+v1_api.register(ClubMemberRelationResource())
 
 urlpatterns = patterns('handball.views',
     (r'^$', 'index')

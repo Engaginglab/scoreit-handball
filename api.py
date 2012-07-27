@@ -59,7 +59,8 @@ class LeagueResource(ModelResource):
 class ClubResource(ModelResource):
     district = fields.ForeignKey(DistrictResource, 'district', full=True)
     # teams = fields.ToManyField('handball.api.TeamResource', 'teams')
-    managers = fields.ToManyField('handball.api.PersonResource', 'managers')
+    # members = fields.ToManyField('handball.api.PersonResource', 'members', blank=True)
+    managers = fields.ToManyField('handball.api.PersonResource', 'managers', blank=True)
 
     class Meta:
         queryset = Club.objects.all()
@@ -75,11 +76,15 @@ class ClubResource(ModelResource):
         bundle.data['managers'] = ['/handball/api/v1/person/' + str(request.user.get_profile().id) + '/']
         return super(ClubResource, self).obj_create(bundle, request)
 
+    def dehydrate(self, bundle):
+        del bundle.data['managers']
+        return bundle
+
 
 class TeamResource(ModelResource):
     club = fields.ForeignKey(ClubResource, 'club', full=True)
-    players = fields.ManyToManyField('handball.api.PersonResource', 'players')
-    coaches = fields.ManyToManyField('handball.api.PersonResource', 'coaches')
+    # players = fields.ManyToManyField('handball.api.PersonResource', 'players')
+    # coaches = fields.ManyToManyField('handball.api.PersonResource', 'coaches')
     managers = fields.ManyToManyField('handball.api.PersonResource', 'managers')
 
     class Meta:
@@ -99,12 +104,12 @@ class TeamResource(ModelResource):
 
 
 class PersonResource(ModelResource):
-    user = fields.OneToOneField(UserResource, 'user', blank=True, null=True)
-    clubs = fields.ManyToManyField(ClubResource, 'clubs')
+    user = fields.OneToOneField(UserResource, 'user', blank=True, null=True, related_name='handball_profile')
+    # clubs = fields.ManyToManyField(ClubResource, 'clubs', blank=True)
     clubs_managed = fields.ManyToManyField(ClubResource, 'clubs_managed', blank=True)
-    teams = fields.ManyToManyField(TeamResource, 'teams', blank=True)
+    # teams = fields.ManyToManyField(TeamResource, 'teams', blank=True)
     teams_managed = fields.ManyToManyField(TeamResource, 'teams_managed', blank=True)
-    teams_coached = fields.ManyToManyField(TeamResource, 'teams_coached', blank=True)
+    # teams_coached = fields.ManyToManyField(TeamResource, 'teams_coached', blank=True)
 
     class Meta:
         queryset = Person.objects.all()
@@ -113,22 +118,30 @@ class PersonResource(ModelResource):
         excludes = ['activation_key', 'key_expires']
         filtering = {
             'user': ALL_WITH_RELATIONS,
-            'clubs': ALL_WITH_RELATIONS,
+            # 'clubs': ALL_WITH_RELATIONS,
             'clubs_managed': ALL_WITH_RELATIONS,
-            'teams': ALL_WITH_RELATIONS,
+            # 'teams': ALL_WITH_RELATIONS,
             'teams_managed': ALL_WITH_RELATIONS,
-            'teams_coached': ALL_WITH_RELATIONS,
+            # 'teams_coached': ALL_WITH_RELATIONS,
             'first_name': ['exact'],
             'last_name': ['exact']
         }
+        always_return_data = True
 
     def dehydrate(self, bundle):
         bundle.data['display_name'] = str(bundle.obj)
+
+        bundle.data['clubs'] = []
+        resource = ClubResource()
+        for membership in ClubMemberRelation.objects.filter(member=bundle.obj):
+            clubBundle = resource.build_bundle(obj=membership.club, request=bundle.request)
+            bundle.data['clubs'].append(resource.full_dehydrate(clubBundle))
+
         # del bundle.data['clubs']
-        del bundle.data['clubs_managed']
-        del bundle.data['teams']
-        del bundle.data['teams_managed']
-        del bundle.data['teams_coached']
+        # del bundle.data['clubs_managed']
+        # del bundle.data['teams']
+        # del bundle.data['teams_managed']
+        # del bundle.data['teams_coached']
         return bundle
 
 
@@ -188,6 +201,16 @@ class EventResource(ModelResource):
         authentication = Authentication()
         include_resource_uri = False
 
+
+class ClubMemberRelationResource(ModelResource):
+    club = fields.ForeignKey(ClubResource, 'club', full=True)
+    member = fields.ForeignKey(PersonResource, 'member', full=True)
+
+    class Meta:
+        queryset = ClubMemberRelation.objects.all()
+        authorization = Authorization()
+        authentication = Authentication()
+        always_return_data = True
 
 """
 Non-resource api endpoints
