@@ -2,8 +2,8 @@ import handball.models
 from django.contrib import admin
 
 
-class MemberClubInline(admin.TabularInline):
-    model = handball.models.MemberClubRelation
+class ClubMemberInline(admin.TabularInline):
+    model = handball.models.ClubMemberRelation
     extra = 1
 
 
@@ -18,11 +18,11 @@ class TeamCoachInline(admin.TabularInline):
 
 
 class PersonAdmin(admin.ModelAdmin):
-    inlines = (MemberClubInline, TeamPlayerInline, TeamCoachInline)
+    inlines = (ClubMemberInline, TeamPlayerInline, TeamCoachInline)
 
 
 class ClubAdmin(admin.ModelAdmin):
-    inlines = (MemberClubInline,)
+    inlines = (ClubMemberInline,)
 
 
 class TeamAdmin(admin.ModelAdmin):

@@ -9,7 +9,6 @@ from tastypie.models import create_api_key
 
 class Person(models.Model):
     user = models.OneToOneField(User, blank=True, null=True, related_name='handball_profile')
-    clubs = models.ManyToManyField('Club', related_name='members', blank=False, through='MemberClubRelation')
 
     first_name = models.CharField(max_length=50)
     last_name = models.CharField(max_length=50)
@@ -20,10 +19,6 @@ class Person(models.Model):
     pass_number = models.IntegerField(unique=True, null=True, blank=True)
     gender = models.CharField(max_length=10, choices=(('male', _('male')), ('female', _('female'))), default='male')
     mobile_number = models.CharField(max_length=20, blank=True)
-    is_coach = models.BooleanField(default=False)
-    is_referee = models.BooleanField(default=False)
-    is_player = models.BooleanField(default=True)
-    is_exec = models.BooleanField(default=False)
 
     def __unicode__(self):
         return self.first_name + ' ' + self.last_name
@@ -46,6 +41,7 @@ class Club(models.Model):
     name = models.CharField(max_length=50)
 
     district = models.ForeignKey('District', related_name='clubs')
+    members = models.ManyToManyField('Person', related_name='clubs', blank=True, through='ClubMemberRelation')
     managers = models.ManyToManyField('Person', blank=True, related_name='clubs_managed')
 
     def __unicode__(self):
@@ -119,7 +115,7 @@ class Game(models.Model):
     group = models.ForeignKey('Group', related_name='games')
     game_type = models.ForeignKey('GameType')
     site = models.ForeignKey('Site')
-    players = models.ManyToManyField('Person', through='PlayerGameRelation')
+    players = models.ManyToManyField('Person', through='GamePlayerRelation')
 
     def __unicode__(self):
         return '{0}/{1}/{2}: {3} {4} vs. {5} {6}'.format(self.start.year, self.start.month, self.start.day, self.home.club.name, self.home.name, self.away.club.name, self.away.name)
@@ -143,7 +139,7 @@ class Site(models.Model):
         return self.name
 
 
-class PlayerGameRelation(models.Model):
+class GamePlayerRelation(models.Model):
     player = models.ForeignKey('Person')
     game = models.ForeignKey('Game')
 
@@ -158,7 +154,7 @@ class PlayerGameRelation(models.Model):
     penalty_shots_miss = models.IntegerField()
 
 
-class MemberClubRelation(models.Model):
+class ClubMemberRelation(models.Model):
     member = models.ForeignKey('Person')
     club = models.ForeignKey('Club')
 
@@ -218,7 +214,8 @@ def set_club_by_team(sender, instance, action, reverse, model, pk_set, **kwargs)
     if action == 'post_add':
         for pk in pk_set:
             player = model.objects.get(pk=pk)
-            player.clubs.add(instance.club)
+            # player.clubs.add(instance.club)
+            ClubMemberRelation.objects.create(member=player, club=instance)
             player.save()
 
 
