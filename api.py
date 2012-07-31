@@ -55,6 +55,10 @@ class LeagueResource(ModelResource):
         authentication = Authentication()
         authorization = Authorization()
 
+    def dehydrate(self, bundle):
+        bundle.data['display_name'] = str(bundle.obj)
+        return bundle
+
 
 class ClubResource(ModelResource):
     district = fields.ForeignKey(DistrictResource, 'district', full=True)
@@ -68,7 +72,7 @@ class ClubResource(ModelResource):
         authorization = Authorization()
         authentication = Authentication()
         filtering = {
-            'union': ALL_WITH_RELATIONS
+            'district': ALL_WITH_RELATIONS
         }
 
     def obj_create(self, bundle, request=None, **kwargs):
@@ -92,6 +96,9 @@ class TeamResource(ModelResource):
         allowed_methods = ['get', 'post', 'put']
         authorization = Authorization()
         authentication = Authentication()
+        filtering = {
+            'club': ALL_WITH_RELATIONS
+        }
 
     def obj_create(self, bundle, request=None, **kwargs):
         # The user to create a team becomes its first manager (for lack of other people)
@@ -100,6 +107,12 @@ class TeamResource(ModelResource):
 
     def dehydrate(self, bundle):
         bundle.data['display_name'] = str(bundle.obj)
+
+        bundle.data['players'] = []
+        resource = PersonResource()
+        for membership in TeamPlayerRelation.objects.filter(player=bundle.obj, manager_confirmed=True):
+            playerBundle = resource.build_bundle(obj=membership.player, request=bundle.request)
+            bundle.data['players'].append(resource.full_dehydrate(playerBundle))
         return bundle
 
 
@@ -211,6 +224,26 @@ class ClubMemberRelationResource(ModelResource):
         authorization = Authorization()
         authentication = Authentication()
         always_return_data = True
+
+
+class SiteResource(ModelResource):
+    class Meta:
+        queryset = Site.objects.all()
+        authorization = Authorization()
+        authentication = Authentication()
+        always_return_data = True
+
+    def dehydrate(self, bundle):
+        bundle.data['display_name'] = str(bundle.obj)
+        return bundle
+
+
+class GroupResource(ModelResource):
+    class Meta:
+        queryset = Group.objects.all()
+        authorization = Authorization()
+        authentication = Authentication()
+
 
 """
 Non-resource api endpoints
