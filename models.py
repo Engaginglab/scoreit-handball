@@ -40,6 +40,7 @@ class Team(models.Model):
 class Club(models.Model):
     name = models.CharField(max_length=50)
 
+    home_site = models.ForeignKey('Site', blank=True)
     district = models.ForeignKey('District', related_name='clubs')
     members = models.ManyToManyField('Person', related_name='clubs', blank=True, through='ClubMemberRelation')
     managers = models.ManyToManyField('Person', blank=True, related_name='clubs_managed')
@@ -58,7 +59,7 @@ class League(models.Model):
     managers = models.ManyToManyField('Person', blank=True, related_name='leagues_managed')
 
     def __unicode__(self):
-        return self.name
+        return '{0} {1} {2}'.format(self.name, self.gender, self.age_group)
 
 
 class LeagueTemplate(models.Model):
@@ -67,7 +68,7 @@ class LeagueTemplate(models.Model):
     age_group = models.CharField(max_length=20, choices=(('adults', _('adults')), ('juniors', _('juniors')), ('kids', _('kids'))))
 
     def __unicode__(self):
-        return self.name
+        return '{0} {1} {2}'.format(self.name, self.gender, self.age_group)
 
 
 class Group(models.Model):
@@ -77,6 +78,9 @@ class Group(models.Model):
     district = models.ForeignKey('District', related_name='groups', blank=True)
     league = models.ForeignKey('League', related_name='groups', blank=True)
     teams = models.ManyToManyField('Team', related_name='groups', blank=True)
+
+    def __unicode__(self):
+        return '{0}, {1}, {2}, {3}'.format(self.name, self.league.name, self.league.gender, self.league.age_group, self.league.district.name)
 
 
 class District(models.Model):
@@ -129,14 +133,14 @@ class GameType(models.Model):
 
 
 class Site(models.Model):
-    name = models.CharField(max_length=50)
-    adress = models.CharField(max_length=50)
+    # name = models.CharField(max_length=50)
+    address = models.CharField(max_length=50)
     city = models.CharField(max_length=50)
     zip_code = models.IntegerField()
     number = models.IntegerField(primary_key=True)
 
     def __unicode__(self):
-        return self.name
+        return '{0}, {1} {2} (#{3})'.format(self.address, self.zip_code, self.city, self.number)
 
 
 class GamePlayerRelation(models.Model):
