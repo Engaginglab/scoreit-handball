@@ -17,8 +17,13 @@ class TeamCoachInline(admin.TabularInline):
     extra = 1
 
 
+class GamePlayerInline(admin.TabularInline):
+    model = handball.models.GamePlayerRelation
+    extra = 1
+
+
 class PersonAdmin(admin.ModelAdmin):
-    inlines = (ClubMemberInline, TeamPlayerInline, TeamCoachInline)
+    inlines = (ClubMemberInline, TeamPlayerInline, TeamCoachInline, GamePlayerInline)
 
 
 class ClubAdmin(admin.ModelAdmin):
@@ -29,6 +34,10 @@ class TeamAdmin(admin.ModelAdmin):
     inlines = (TeamPlayerInline, TeamCoachInline)
 
 
+class GameAdmin(admin.ModelAdmin):
+    inlines = (GamePlayerInline,)
+
+
 admin.site.register(handball.models.Person, PersonAdmin)
 admin.site.register(handball.models.Club, ClubAdmin)
 admin.site.register(handball.models.Group)
@@ -36,9 +45,10 @@ admin.site.register(handball.models.League)
 admin.site.register(handball.models.LeagueTemplate)
 admin.site.register(handball.models.District)
 admin.site.register(handball.models.Union)
-admin.site.register(handball.models.Game)
+admin.site.register(handball.models.Game, GameAdmin)
 admin.site.register(handball.models.GameType)
 admin.site.register(handball.models.Team, TeamAdmin)
 admin.site.register(handball.models.Site)
 admin.site.register(handball.models.Event)
 admin.site.register(handball.models.EventType)
+admin.site.register(handball.models.GamePlayerRelation)

@@ -60,6 +60,13 @@ class LeagueResource(ModelResource):
         return bundle
 
 
+class GroupResource(ModelResource):
+    class Meta:
+        queryset = Group.objects.all()
+        authorization = Authorization()
+        authentication = Authentication()
+
+
 class ClubResource(ModelResource):
     district = fields.ForeignKey(DistrictResource, 'district', full=True)
     # teams = fields.ToManyField('handball.api.TeamResource', 'teams')
@@ -150,18 +157,12 @@ class PersonResource(ModelResource):
             clubBundle = resource.build_bundle(obj=membership.club, request=bundle.request)
             bundle.data['clubs'].append(resource.full_dehydrate(clubBundle))
 
-        # del bundle.data['clubs']
-        # del bundle.data['clubs_managed']
-        # del bundle.data['teams']
-        # del bundle.data['teams_managed']
-        # del bundle.data['teams_coached']
         return bundle
 
 
 class GameTypeResource(ModelResource):
     class Meta:
         queryset = GameType.objects.all()
-        include_resource_uri = False
         authorization = Authorization()
         authentication = Authentication()
 
@@ -169,7 +170,6 @@ class GameTypeResource(ModelResource):
 class SiteResource(ModelResource):
     class Meta:
         queryset = Site.objects.all()
-        include_resource_uri = False
         authorization = Authorization()
         authentication = Authentication()
 
@@ -180,33 +180,37 @@ class GameResource(ModelResource):
     referee = fields.ForeignKey(PersonResource, 'referee')
     timer = fields.ForeignKey(PersonResource, 'timer')
     secretary = fields.ForeignKey(PersonResource, 'secretary')
-    winner = fields.ForeignKey(TeamResource, 'winner')
-    union = fields.ForeignKey(UnionResource, 'union', full=True)
-    league = fields.ForeignKey(LeagueResource, 'league', full=True)
-    game_type = fields.ForeignKey(GameTypeResource, 'game_type', full=True)
-    site = fields.ForeignKey(SiteResource, 'site', full=True)
-    players = fields.ManyToManyField(PersonResource, 'players')
+    supervisor = fields.ForeignKey(PersonResource, 'supervisor')
+    winner = fields.ForeignKey(TeamResource, 'winner', null=True)
+    group = fields.ForeignKey(GroupResource, 'group')
+    game_type = fields.ForeignKey(GameTypeResource, 'game_type')
+    site = fields.ForeignKey(SiteResource, 'site')
     events = fields.ToManyField('handball.api.EventResource', 'events', full=True)
 
     class Meta:
         queryset = Game.objects.all()
         authorization = Authorization()
         authentication = Authentication()
+        always_return_data = True
+
+    def hydrate_m2m(self, bundle):
+        for item in bundle.data['events']:
+            item[u'game'] = self.get_resource_uri(bundle)
+        return super(GameResource, self).hydrate_m2m(bundle)
 
 
 class EventTypeResource(ModelResource):
-    game = fields.ForeignKey(GameResource, 'game')
-
     class Meta:
         queryset = EventType.objects.all()
-        include_resource_uri = False
         authorization = Authorization()
         authentication = Authentication()
 
 
 class EventResource(ModelResource):
-    player = fields.ForeignKey(PersonResource, 'person')
+    person = fields.ForeignKey(PersonResource, 'person', full=True)
     game = fields.ForeignKey(GameResource, 'game')
+    event_type = fields.ForeignKey(EventTypeResource, 'event_type')
+    team = fields.ForeignKey(TeamResource, 'team')
 
     class Meta:
         queryset = Event.objects.all()
@@ -226,6 +230,18 @@ class ClubMemberRelationResource(ModelResource):
         always_return_data = True
 
 
+class GamePlayerRelationResource(ModelResource):
+    game = fields.ForeignKey(GameResource, 'game', full=True)
+    player = fields.ForeignKey(PersonResource, 'player', full=True)
+    team = fields.ForeignKey(TeamResource, 'team')
+
+    class Meta:
+        queryset = GamePlayerRelation.objects.all()
+        authorization = Authorization()
+        authentication = Authentication()
+        always_return_data = True
+
+
 class SiteResource(ModelResource):
     class Meta:
         queryset = Site.objects.all()
@@ -236,13 +252,6 @@ class SiteResource(ModelResource):
     def dehydrate(self, bundle):
         bundle.data['display_name'] = str(bundle.obj)
         return bundle
-
-
-class GroupResource(ModelResource):
-    class Meta:
-        queryset = Group.objects.all()
-        authorization = Authorization()
-        authentication = Authentication()
 
 
 """
