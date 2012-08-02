@@ -103,19 +103,18 @@ class Union(models.Model):
 
 
 class Game(models.Model):
-    number = models.IntegerField(primary_key=True)
+    number = models.IntegerField(unique=True, blank=True, null=True)
     start = models.DateTimeField()
-    goals_home = models.IntegerField()
-    goals_away = models.IntegerField()
+    score_home = models.IntegerField()
+    score_away = models.IntegerField()
 
     home = models.ForeignKey('Team', related_name='games_home')
     away = models.ForeignKey('Team', related_name='games_away')
     referee = models.ForeignKey('Person', related_name='games_as_referee')
     timer = models.ForeignKey('Person', related_name='games_as_timer')
     secretary = models.ForeignKey('Person', related_name='games_as_secretary')
-    winner = models.ForeignKey('Team', related_name='games_won')
-    # union = models.ForeignKey('Union')
-    # league = models.ForeignKey('League')
+    supervisor = models.ForeignKey('Person', related_name='games_as_supervisor')
+    winner = models.ForeignKey('Team', related_name='games_won', blank=True, null=True)
     group = models.ForeignKey('Group', related_name='games')
     game_type = models.ForeignKey('GameType')
     site = models.ForeignKey('Site')
@@ -137,7 +136,7 @@ class Site(models.Model):
     address = models.CharField(max_length=50)
     city = models.CharField(max_length=50)
     zip_code = models.IntegerField()
-    number = models.IntegerField(primary_key=True)
+    number = models.IntegerField(unique=True, blank=True, null=True)
 
     def __unicode__(self):
         return '{0}, {1} {2} (#{3})'.format(self.address, self.zip_code, self.city, self.number)
@@ -148,14 +147,14 @@ class GamePlayerRelation(models.Model):
     game = models.ForeignKey('Game')
 
     team = models.ForeignKey('Team')
-    shirt_number = models.IntegerField()
-    goals = models.IntegerField()
-    warnings = models.IntegerField()
-    penalties = models.IntegerField()
-    disqualifications = models.IntegerField()
-    team_penalties = models.IntegerField()
-    penalty_shots_hit = models.IntegerField()
-    penalty_shots_miss = models.IntegerField()
+    shirt_number = models.IntegerField(blank=True, null=True)
+    # goals = models.IntegerField()
+    # warnings = models.IntegerField()
+    # penalties = models.IntegerField()
+    # disqualifications = models.IntegerField()
+    # team_penalties = models.IntegerField()
+    # penalty_shots_hit = models.IntegerField()
+    # penalty_shots_miss = models.IntegerField()
 
 
 class ClubMemberRelation(models.Model):
@@ -214,17 +213,32 @@ def set_union_by_district(sender, instance, **kwargs):
         instance.union = instance.district.union
 
 
-def set_club_by_team(sender, instance, action, reverse, model, pk_set, **kwargs):
-    if action == 'post_add':
-        for pk in pk_set:
-            player = model.objects.get(pk=pk)
-            # player.clubs.add(instance.club)
-            ClubMemberRelation.objects.create(member=player, club=instance)
-            player.save()
+# def set_club_by_team(sender, instance, action, reverse, model, pk_set, **kwargs):
+#     if action == 'post_add':
+#         for pk in pk_set:
+#             player = model.objects.get(pk=pk)
+#             # player.clubs.add(instance.club)
+#             ClubMemberRelation.objects.create(member=player, club=instance)
+#             player.save()
 
+def set_club_by_team(sender, instance, created, **kwargs):
+    try:
+        ClubMemberRelation.objects.get(member=instance.player, club=instance.team.club)
+    except ClubMemberRelation.DoesNotExist:
+        ClubMemberRelation.objects.create(member=instance.player, club=instance.team.club,
+            manager_confirmed=instance.manager_confirmed, member_confirmed=instance.player_confirmed)
+
+
+def add_player_to_team(sender, instance, created, **kwargs):
+    try:
+        TeamPlayerRelation.objects.get(team=instance.team, player=instance.player)
+    except TeamPlayerRelation.DoesNotExist:
+        TeamPlayerRelation.objects.create(team=instance.team, player=instance.player, manager_confirmed=True, player_confirmed=True)
 
 # Create API key for a new user
 post_save.connect(create_api_key, sender=User)
 post_save.connect(create_default_leagues, sender=District)
 pre_save.connect(set_union_by_district, sender=League)
-m2m_changed.connect(set_club_by_team, sender=Team.players.through)
+post_save.connect(set_club_by_team, sender=TeamPlayerRelation)
+post_save.connect(add_player_to_team, sender=GamePlayerRelation)
+# m2m_changed.connect(set_club_by_team, sender=Team.players.through)
