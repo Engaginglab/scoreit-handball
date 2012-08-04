@@ -242,6 +242,21 @@ class GamePlayerRelationResource(ModelResource):
         always_return_data = True
 
 
+class TeamPlayerRelationResource(ModelResource):
+    team = fields.ForeignKey(TeamResource, 'team', full=True)
+    player = fields.ForeignKey(PersonResource, 'player', full=True)
+
+    class Meta:
+        queryset = TeamPlayerRelation.objects.all()
+        authorization = Authorization()
+        authentication = Authentication()
+        always_return_data = True
+        filtering = {
+            'player': ALL_WITH_RELATIONS,
+            'team': ALL_WITH_RELATIONS
+        }
+
+
 class SiteResource(ModelResource):
     class Meta:
         queryset = Site.objects.all()

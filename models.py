@@ -40,7 +40,7 @@ class Team(models.Model):
 class Club(models.Model):
     name = models.CharField(max_length=50)
 
-    home_site = models.ForeignKey('Site', blank=True)
+    home_site = models.ForeignKey('Site', blank=True, null=True)
     district = models.ForeignKey('District', related_name='clubs')
     members = models.ManyToManyField('Person', related_name='clubs', blank=True, through='ClubMemberRelation')
     managers = models.ManyToManyField('Person', blank=True, related_name='clubs_managed')
