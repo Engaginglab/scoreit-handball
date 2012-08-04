@@ -20,9 +20,9 @@ v1_api.register(EventTypeResource())
 v1_api.register(GamePlayerRelationResource())
 v1_api.register(TeamPlayerRelationResource())
 
-urlpatterns = patterns('', (r'^api/', include(v1_api.urls)))
+urlpatterns = patterns('', (r'^', include(v1_api.urls)))
 
 # Non-resource api endpoints
 urlpatterns += patterns('handball.api',
-    (r'^api/v1/unique/$', 'is_unique'),
+    (r'^v1/unique/$', 'is_unique'),
 )
