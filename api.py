@@ -79,7 +79,8 @@ class ClubResource(ModelResource):
         authorization = Authorization()
         authentication = Authentication()
         filtering = {
-            'district': ALL_WITH_RELATIONS
+            'district': ALL_WITH_RELATIONS,
+            'managers': ALL_WITH_RELATIONS
         }
 
     def obj_create(self, bundle, request=None, **kwargs):
@@ -228,6 +229,10 @@ class ClubMemberRelationResource(ModelResource):
         authorization = Authorization()
         authentication = Authentication()
         always_return_data = True
+        filtering = {
+            'member': ALL_WITH_RELATIONS,
+            'club': ALL_WITH_RELATIONS
+        }
 
 
 class GamePlayerRelationResource(ModelResource):
