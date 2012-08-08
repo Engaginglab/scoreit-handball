@@ -61,7 +61,7 @@ class League(models.Model):
     managers = models.ManyToManyField('Person', blank=True, related_name='leagues_managed', through='LeagueManagerRelation')
 
     def __unicode__(self):
-        return '{0} {1} {2}'.format(self.name, self.gender, self.age_group)
+        return u'{0} {1} {2}'.format(self.name, self.gender, self.age_group)
 
 
 class LeagueTemplate(models.Model):
@@ -70,7 +70,7 @@ class LeagueTemplate(models.Model):
     age_group = models.CharField(max_length=20, choices=(('adults', _('adults')), ('juniors', _('juniors')), ('kids', _('kids'))))
 
     def __unicode__(self):
-        return '{0} {1} {2}'.format(self.name, self.gender, self.age_group)
+        return u'{0} {1} {2}'.format(self.name, self.gender, self.age_group)
 
 
 class Group(models.Model):
@@ -82,7 +82,7 @@ class Group(models.Model):
     teams = models.ManyToManyField('Team', related_name='groups', blank=True)
 
     def __unicode__(self):
-        return '{0}, {1}, {2}, {3}'.format(self.name, self.league.name, self.league.gender, self.league.age_group, self.league.district.name)
+        return u'{0}, {1}, {2}, {3}'.format(self.name, self.league.name, self.league.gender, self.league.age_group, self.league.district.name)
 
 
 class District(models.Model):
@@ -123,7 +123,7 @@ class Game(models.Model):
     players = models.ManyToManyField('Person', through='GamePlayerRelation')
 
     def __unicode__(self):
-        return '{0}/{1}/{2}: {3} {4} vs. {5} {6}'.format(self.start.year, self.start.month, self.start.day, self.home.club.name, self.home.name, self.away.club.name, self.away.name)
+        return u'{0}/{1}/{2}: {3} {4} vs. {5} {6}'.format(self.start.year, self.start.month, self.start.day, self.home.club.name, self.home.name, self.away.club.name, self.away.name)
 
 
 class GameType(models.Model):
@@ -141,7 +141,7 @@ class Site(models.Model):
     number = models.IntegerField(unique=True, blank=True, null=True)
 
     def __unicode__(self):
-        return '{0}, {1} {2} (#{3})'.format(self.address, self.zip_code, self.city, self.number)
+        return u'{0}, {1} {2} (#{3})'.format(self.address, self.zip_code, self.city, self.number)
 
 
 class GamePlayerRelation(models.Model):
@@ -267,15 +267,22 @@ def club_member_to_manager(sender, instance, created, **kwargs):
 
 
 def team_player_to_manager(sender, instance, created, **kwargs):
-    managers = TeamManagerRelation.objects.filter(team=instance.club)
+    managers = TeamManagerRelation.objects.filter(team=instance.team)
     if len(managers) == 0:
-        TeamManagerRelation.objects.create(team=instance.club, manager=instance.player)
+        TeamManagerRelation.objects.create(team=instance.team, manager=instance.player)
 
 
 def team_coach_to_manager(sender, instance, created, **kwargs):
-    managers = TeamManagerRelation.objects.filter(team=instance.club)
+    managers = TeamManagerRelation.objects.filter(team=instance.team)
     if len(managers) == 0:
-        TeamManagerRelation.objects.create(team=instance.club, manager=instance.coach)
+        TeamManagerRelation.objects.create(team=instance.team, manager=instance.coach)
+
+
+def club_primary_check(sender, instance, **kwargs):
+    clubs = ClubMemberRelation.objects.filter(member=instance.member)
+
+    if len(clubs) == 0:
+        instance.primary = True
 
 
 # Create API key for a new user
@@ -287,4 +294,5 @@ post_save.connect(add_player_to_team, sender=GamePlayerRelation)
 post_save.connect(club_member_to_manager, sender=ClubMemberRelation)
 post_save.connect(team_player_to_manager, sender=TeamPlayerRelation)
 post_save.connect(team_coach_to_manager, sender=TeamCoachRelation)
+pre_save.connect(club_primary_check, sender=ClubMemberRelation)
 # m2m_changed.connect(set_club_by_team, sender=Team.players.through)
