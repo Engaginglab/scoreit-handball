@@ -16,7 +16,7 @@ class Person(models.Model):
     city = models.CharField(max_length=50, blank=True)
     zip_code = models.IntegerField(null=True, blank=True)
     birthday = models.DateField(null=True, blank=True)
-    pass_number = models.IntegerField(unique=True, null=True, blank=True)
+    pass_number = models.IntegerField(null=True, blank=True)
     gender = models.CharField(max_length=10, choices=(('male', _('male')), ('female', _('female'))), default='male')
     mobile_number = models.CharField(max_length=20, blank=True)
 
@@ -26,12 +26,13 @@ class Person(models.Model):
 
 class Team(models.Model):
     name = models.CharField(max_length=50)
+    validated = models.BooleanField(blank=True, default=False)
 
     players = models.ManyToManyField('Person', blank=True, related_name='teams', through='TeamPlayerRelation')
     coaches = models.ManyToManyField('Person', blank=True, related_name='teams_coached', through='TeamCoachRelation')
     # league = models.ForeignKey('League', related_name='league', blank=True)
     club = models.ForeignKey('Club', related_name='teams')
-    managers = models.ManyToManyField('Person', blank=True, related_name='teams_managed')
+    managers = models.ManyToManyField('Person', blank=True, related_name='teams_managed', through='TeamManagerRelation')
 
     def __unicode__(self):
         return self.club.name + ' ' + self.name
@@ -39,11 +40,12 @@ class Team(models.Model):
 
 class Club(models.Model):
     name = models.CharField(max_length=50)
+    validated = models.BooleanField(blank=True, default=False)
 
     home_site = models.ForeignKey('Site', blank=True, null=True)
     district = models.ForeignKey('District', related_name='clubs')
     members = models.ManyToManyField('Person', related_name='clubs', blank=True, through='ClubMemberRelation')
-    managers = models.ManyToManyField('Person', blank=True, related_name='clubs_managed')
+    managers = models.ManyToManyField('Person', blank=True, related_name='clubs_managed', through='ClubManagerRelation')
 
     def __unicode__(self):
         return self.name
@@ -56,7 +58,7 @@ class League(models.Model):
 
     union = models.ForeignKey('Union', related_name='leagues', blank=True)
     district = models.ForeignKey('District', related_name='leagues', blank=True)
-    managers = models.ManyToManyField('Person', blank=True, related_name='leagues_managed')
+    managers = models.ManyToManyField('Person', blank=True, related_name='leagues_managed', through='LeagueManagerRelation')
 
     def __unicode__(self):
         return '{0} {1} {2}'.format(self.name, self.gender, self.age_group)
@@ -87,7 +89,7 @@ class District(models.Model):
     name = models.CharField(max_length=50)
 
     union = models.ForeignKey('Union', related_name='districts')
-    managers = models.ManyToManyField('Person', blank=True, related_name='districts_managed')
+    managers = models.ManyToManyField('Person', blank=True, related_name='districts_managed', through='DistrictManagerRelation')
 
     def __unicode__(self):
         return self.name
@@ -96,7 +98,7 @@ class District(models.Model):
 class Union(models.Model):
     name = models.CharField(max_length=50)
 
-    managers = models.ManyToManyField('Person', blank=True, related_name='unions_managed')
+    managers = models.ManyToManyField('Person', blank=True, related_name='unions_managed', through='UnionManagerRelation')
 
     def __unicode__(self):
         return self.name
@@ -182,6 +184,36 @@ class TeamCoachRelation(models.Model):
     manager_confirmed = models.BooleanField(default=False)
 
 
+class ClubManagerRelation(models.Model):
+    club = models.ForeignKey('Club')
+    manager = models.ForeignKey('Person')
+    appointed_by = models.ForeignKey(User, related_name='handball_club_managers_appointed', blank=True, null=True)
+
+
+class TeamManagerRelation(models.Model):
+    team = models.ForeignKey('Team')
+    manager = models.ForeignKey('Person')
+    appointed_by = models.ForeignKey(User, related_name='handball_team_managers_appointed', blank=True, null=True)
+
+
+class LeagueManagerRelation(models.Model):
+    league = models.ForeignKey('League')
+    manager = models.ForeignKey('Person')
+    appointed_by = models.ForeignKey(User, related_name='handball_league_managers_appointed', blank=True, null=True)
+
+
+class DistrictManagerRelation(models.Model):
+    district = models.ForeignKey('District')
+    manager = models.ForeignKey('Person')
+    appointed_by = models.ForeignKey(User, related_name='handball_district_managers_appointed', blank=True, null=True)
+
+
+class UnionManagerRelation(models.Model):
+    union = models.ForeignKey('Union')
+    manager = models.ForeignKey('Person')
+    appointed_by = models.ForeignKey(User, related_name='handball_union_managers_appointed', blank=True, null=True)
+
+
 class Event(models.Model):
     time = models.IntegerField()
 
@@ -213,14 +245,6 @@ def set_union_by_district(sender, instance, **kwargs):
         instance.union = instance.district.union
 
 
-# def set_club_by_team(sender, instance, action, reverse, model, pk_set, **kwargs):
-#     if action == 'post_add':
-#         for pk in pk_set:
-#             player = model.objects.get(pk=pk)
-#             # player.clubs.add(instance.club)
-#             ClubMemberRelation.objects.create(member=player, club=instance)
-#             player.save()
-
 def set_club_by_team(sender, instance, created, **kwargs):
     try:
         ClubMemberRelation.objects.get(member=instance.player, club=instance.team.club)
@@ -235,10 +259,32 @@ def add_player_to_team(sender, instance, created, **kwargs):
     except TeamPlayerRelation.DoesNotExist:
         TeamPlayerRelation.objects.create(team=instance.team, player=instance.player, manager_confirmed=True, player_confirmed=True)
 
+
+def club_member_to_manager(sender, instance, created, **kwargs):
+    managers = ClubManagerRelation.objects.filter(club=instance.club)
+    if len(managers) == 0:
+        ClubManagerRelation.objects.create(club=instance.club, manager=instance.member)
+
+
+def team_player_to_manager(sender, instance, created, **kwargs):
+    managers = TeamManagerRelation.objects.filter(team=instance.club)
+    if len(managers) == 0:
+        TeamManagerRelation.objects.create(team=instance.club, manager=instance.player)
+
+
+def team_coach_to_manager(sender, instance, created, **kwargs):
+    managers = TeamManagerRelation.objects.filter(team=instance.club)
+    if len(managers) == 0:
+        TeamManagerRelation.objects.create(team=instance.club, manager=instance.coach)
+
+
 # Create API key for a new user
 post_save.connect(create_api_key, sender=User)
 post_save.connect(create_default_leagues, sender=District)
 pre_save.connect(set_union_by_district, sender=League)
 post_save.connect(set_club_by_team, sender=TeamPlayerRelation)
 post_save.connect(add_player_to_team, sender=GamePlayerRelation)
+post_save.connect(club_member_to_manager, sender=ClubMemberRelation)
+post_save.connect(team_player_to_manager, sender=TeamPlayerRelation)
+post_save.connect(team_coach_to_manager, sender=TeamCoachRelation)
 # m2m_changed.connect(set_club_by_team, sender=Team.players.through)

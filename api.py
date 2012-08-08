@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from tastypie.resources import ModelResource, ALL_WITH_RELATIONS
 from tastypie import fields
 from handball.models import *
@@ -5,9 +7,11 @@ from django.contrib.auth.models import User
 from tastypie.authorization import DjangoAuthorization, Authorization
 from tastypie.authentication import Authentication, ApiKeyAuthentication
 from django.http import HttpResponse, HttpResponseBadRequest
+from tastypie.http import HttpUnauthorized
 from tastypie.serializers import Serializer
 from tastypie.utils.mime import determine_format
 from auth.api import UserResource
+from django.core.mail import send_mail
 
 
 class UnionResource(ModelResource):
@@ -67,70 +71,8 @@ class GroupResource(ModelResource):
         authentication = Authentication()
 
 
-class ClubResource(ModelResource):
-    district = fields.ForeignKey(DistrictResource, 'district', full=True)
-    # teams = fields.ToManyField('handball.api.TeamResource', 'teams')
-    # members = fields.ToManyField('handball.api.PersonResource', 'members', blank=True)
-    managers = fields.ToManyField('handball.api.PersonResource', 'managers', blank=True)
-
-    class Meta:
-        queryset = Club.objects.all()
-        allowed_methods = ['get', 'post', 'put']
-        authorization = Authorization()
-        authentication = Authentication()
-        filtering = {
-            'district': ALL_WITH_RELATIONS,
-            'managers': ALL_WITH_RELATIONS
-        }
-
-    def obj_create(self, bundle, request=None, **kwargs):
-        # The user to create a club becomes its first manager (for lack of other people)
-        bundle.data['managers'] = ['/handball/api/v1/person/' + str(request.user.get_profile().id) + '/']
-        return super(ClubResource, self).obj_create(bundle, request)
-
-    def dehydrate(self, bundle):
-        del bundle.data['managers']
-        return bundle
-
-
-class TeamResource(ModelResource):
-    club = fields.ForeignKey(ClubResource, 'club', full=True)
-    # players = fields.ManyToManyField('handball.api.PersonResource', 'players')
-    # coaches = fields.ManyToManyField('handball.api.PersonResource', 'coaches')
-    managers = fields.ManyToManyField('handball.api.PersonResource', 'managers')
-
-    class Meta:
-        queryset = Team.objects.all()
-        allowed_methods = ['get', 'post', 'put']
-        authorization = Authorization()
-        authentication = Authentication()
-        filtering = {
-            'club': ALL_WITH_RELATIONS
-        }
-
-    def obj_create(self, bundle, request=None, **kwargs):
-        # The user to create a team becomes its first manager (for lack of other people)
-        bundle.data['managers'] = ['/handball/api/v1/person/' + str(request.user.get_profile().id) + '/']
-        return super(TeamResource, self).obj_create(bundle, request)
-
-    def dehydrate(self, bundle):
-        bundle.data['display_name'] = str(bundle.obj)
-
-        bundle.data['players'] = []
-        resource = PersonResource()
-        for membership in TeamPlayerRelation.objects.filter(player=bundle.obj, manager_confirmed=True):
-            playerBundle = resource.build_bundle(obj=membership.player, request=bundle.request)
-            bundle.data['players'].append(resource.full_dehydrate(playerBundle))
-        return bundle
-
-
 class PersonResource(ModelResource):
     user = fields.OneToOneField(UserResource, 'user', blank=True, null=True, related_name='handball_profile')
-    # clubs = fields.ManyToManyField(ClubResource, 'clubs', blank=True)
-    clubs_managed = fields.ManyToManyField(ClubResource, 'clubs_managed', blank=True)
-    # teams = fields.ManyToManyField(TeamResource, 'teams', blank=True)
-    teams_managed = fields.ManyToManyField(TeamResource, 'teams_managed', blank=True)
-    # teams_coached = fields.ManyToManyField(TeamResource, 'teams_coached', blank=True)
 
     class Meta:
         queryset = Person.objects.all()
@@ -158,6 +100,64 @@ class PersonResource(ModelResource):
             clubBundle = resource.build_bundle(obj=membership.club, request=bundle.request)
             bundle.data['clubs'].append(resource.full_dehydrate(clubBundle))
 
+        return bundle
+
+
+class ClubResource(ModelResource):
+    district = fields.ForeignKey(DistrictResource, 'district', full=True)
+
+    class Meta:
+        queryset = Club.objects.all()
+        allowed_methods = ['get', 'post', 'put']
+        authorization = Authorization()
+        authentication = Authentication()
+        filtering = {
+            'district': ALL_WITH_RELATIONS,
+            'managers': ALL_WITH_RELATIONS
+        }
+
+    # def obj_create(self, bundle, request=None, **kwargs):
+    #     # The user to create a club becomes its first manager (for lack of other people)
+    #     try:
+    #         person = Person.objects.get(user=request.user)
+    #         person_resource = PersonResource()
+    #         bundle.data['managers'] = [person_resource.get_resource_uri(person)]
+    #     except Person.DoesNotExist:
+    #         pass
+    #     return super(ClubResource, self).obj_create(bundle, request)
+
+
+class TeamResource(ModelResource):
+    club = fields.ForeignKey(ClubResource, 'club', full=True)
+
+    class Meta:
+        queryset = Team.objects.all()
+        allowed_methods = ['get', 'post', 'put']
+        authorization = Authorization()
+        authentication = Authentication()
+        filtering = {
+            'club': ALL_WITH_RELATIONS,
+            'managers': ALL_WITH_RELATIONS
+        }
+
+    # def obj_create(self, bundle, request=None, **kwargs):
+    #     # The user to create a team becomes its first manager (for lack of other people)
+    #     try:
+    #         person = Person.objects.get(user=request.user)
+    #         person_resource = PersonResource()
+    #         bundle.data['managers'] = [person_resource.get_resource_uri(person)]
+    #     except Person.DoesNotExist:
+    #         pass
+    #     return super(TeamResource, self).obj_create(bundle, request)
+
+    def dehydrate(self, bundle):
+        bundle.data['display_name'] = str(bundle.obj)
+
+        bundle.data['players'] = []
+        resource = PersonResource()
+        for membership in TeamPlayerRelation.objects.filter(player=bundle.obj, manager_confirmed=True):
+            playerBundle = resource.build_bundle(obj=membership.player, request=bundle.request)
+            bundle.data['players'].append(resource.full_dehydrate(playerBundle))
         return bundle
 
 
@@ -262,6 +262,112 @@ class TeamPlayerRelationResource(ModelResource):
         }
 
 
+class TeamCoachRelationResource(ModelResource):
+    team = fields.ForeignKey(TeamResource, 'team', full=True)
+    coach = fields.ForeignKey(PersonResource, 'coach', full=True)
+
+    class Meta:
+        queryset = TeamCoachRelation.objects.all()
+        authorization = Authorization()
+        authentication = Authentication()
+        always_return_data = True
+        filtering = {
+            'coach': ALL_WITH_RELATIONS,
+            'team': ALL_WITH_RELATIONS
+        }
+
+
+class ClubManagerRelationResource(ModelResource):
+    club = fields.ForeignKey(ClubResource, 'club', full=True)
+    manager = fields.ForeignKey(PersonResource, 'manager', full=True)
+    appointed_by = fields.ForeignKey(UserResource, 'appointed_by', null=True, blank=True)
+
+    class Meta:
+        queryset = ClubManagerRelation.objects.all()
+        authorization = Authorization()
+        authentication = Authentication()
+        always_return_data = True
+        filtering = {
+            'club': ALL_WITH_RELATIONS,
+            'manager': ALL_WITH_RELATIONS
+        }
+
+    def obj_create(self, bundle, request=None, **kwargs):
+        if request.user:
+            user_resource = UserResource()
+            bundle.data['appointed_by'] = user_resource.get_resource_uri(request.user)
+
+        return super(ClubManagerRelationResource, self).obj_create(bundle, request)
+
+
+class TeamManagerRelationResource(ModelResource):
+    team = fields.ForeignKey(TeamResource, 'team', full=True)
+    manager = fields.ForeignKey(PersonResource, 'manager', full=True)
+    appointed_by = fields.ForeignKey(UserResource, 'appointed_by', null=True, blank=True)
+
+    class Meta:
+        queryset = TeamManagerRelation.objects.all()
+        authorization = Authorization()
+        authentication = Authentication()
+        always_return_data = True
+        filtering = {
+            'team': ALL_WITH_RELATIONS,
+            'manager': ALL_WITH_RELATIONS
+        }
+
+    def obj_create(self, bundle, request=None, **kwargs):
+        if request.user:
+            user_resource = UserResource()
+            bundle.data['appointed_by'] = user_resource.get_resource_uri(request.user)
+
+        return super(TeamManagerRelationResource, self).obj_create(bundle, request)
+
+
+# class LeagueManagerRelationResource(ModelResource):
+#     league = fields.ForeignKey(LeagueResource, 'league', full=True)
+#     manager = fields.ForeignKey(PersonResource, 'manager', full=True)
+
+#     class Meta:
+#         queryset = LeagueManagerRelation.objects.all()
+#         authorization = Authorization()
+#         authentication = Authentication()
+#         always_return_data = True
+#         filtering = {
+#             'league': ALL_WITH_RELATIONS,
+#             'manager': ALL_WITH_RELATIONS
+#         }
+
+
+# class DistrictManagerRelationResource(ModelResource):
+#     district = fields.ForeignKey(DistrictResource, 'club', full=True)
+#     manager = fields.ForeignKey(PersonResource, 'manager', full=True)
+
+#     class Meta:
+#         queryset = DistrictManagerRelation.objects.all()
+#         authorization = Authorization()
+#         authentication = Authentication()
+#         always_return_data = True
+#         filtering = {
+#             'district': ALL_WITH_RELATIONS,
+#             'manager': ALL_WITH_RELATIONS
+#         }
+
+
+# class UnionManagerRelationResource(ModelResource):
+#     union = fields.ForeignKey(ClubResource, 'union', full=True)
+#     manager = fields.ForeignKey(PersonResource, 'manager', full=True)
+
+#     class Meta:
+#         queryset = ClubManagerRelation.objects.all()
+#         authorization = Authorization()
+#         authentication = Authentication()
+#         always_return_data = True
+#         filtering = {
+#             'union': ALL_WITH_RELATIONS,
+#             'manager': ALL_WITH_RELATIONS
+#         }
+
+
 class SiteResource(ModelResource):
     class Meta:
         queryset = Site.objects.all()
@@ -300,3 +406,36 @@ def is_unique(request):
     format = determine_format(request, serializer, default_format='application/json')
 
     return HttpResponse(serializer.serialize(data, format, {}))
+
+
+def send_invitation(request):
+    if request.user.is_authenticated() and request.user.is_active:
+        if 'email' in request.POST:
+            email = request.POST['email']
+        else:
+            return HttpResponseBadRequest('Mandatory email parameter not provided.')
+
+        if 'message' in request.POST:
+            message = request.POST['message']
+        else:
+            message = 'Tritt Score.it bei und sehe deine Handballergebnisse online!'
+
+        profile = None
+        if 'profile' in request.POST:
+            serializer = Serializer()
+            profile = serializer.deserialize(request.POST['profile'])
+
+        subject = '{0} {1} lädt dich zu Score.it ein!'.format(request.user.first_name, request.user.last_name)
+
+        if profile:
+            profile_link = 'http://score-it.de/?a=invite&p={0}'.format(profile.id)
+            body = '{0} {1} hat ein Spielerprofil bei Score.it für dich erstellt. Melde dich jetzt bei Score.it an, um deine Handballergebnisse online abzurufen! Zum anmelden, klicke einfach folgenden Link: {3}'.format(request.user.first_name, request.user.last_name, profile_link)
+        else:
+            body = '{0} {1} hat dir eine Einladung zu der Sportplatform Score.it geschickt:<br>{2}Um dich anzumelden, besuche einfach http://score-it.de/!'.format(request.user.first_name, request.user.last_name, message)
+
+        sender = 'noreply@score-it.de'
+        recipients = [email]
+        send_mail(subject, body, sender, recipients)
+        return HttpResponse('')
+    else:
+        return HttpUnauthorized('Authentication through active user required.')
