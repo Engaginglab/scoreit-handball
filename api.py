@@ -52,23 +52,19 @@ class DistrictResource(ModelResource):
         return bundle
 
 
-class LeagueResource(ModelResource):
-    class Meta:
-        queryset = League.objects.all()
-        allowed_methods = ['get']
-        authentication = Authentication()
-        authorization = Authorization()
-
-    def dehydrate(self, bundle):
-        bundle.data['display_name'] = str(bundle.obj)
-        return bundle
-
-
 class GroupResource(ModelResource):
+    union = fields.ForeignKey(UnionResource, 'union', blank=True, null=True)
+    district = fields.ForeignKey(DistrictResource, 'district', blank=True, null=True)
+
     class Meta:
         queryset = Group.objects.all()
-        authorization = Authorization()
+        # allowed_methods = ['get', '']
         authentication = Authentication()
+        authorization = Authorization()
+        filtering = {
+            'union': ALL_WITH_RELATIONS,
+            'district': ALL_WITH_RELATIONS
+        }
 
 
 class PersonResource(ModelResource):
@@ -161,13 +157,6 @@ class TeamResource(ModelResource):
         return bundle
 
 
-class GameTypeResource(ModelResource):
-    class Meta:
-        queryset = GameType.objects.all()
-        authorization = Authorization()
-        authentication = Authentication()
-
-
 class SiteResource(ModelResource):
     class Meta:
         queryset = Site.objects.all()
@@ -184,7 +173,6 @@ class GameResource(ModelResource):
     supervisor = fields.ForeignKey(PersonResource, 'supervisor')
     winner = fields.ForeignKey(TeamResource, 'winner', null=True)
     group = fields.ForeignKey(GroupResource, 'group')
-    game_type = fields.ForeignKey(GameTypeResource, 'game_type')
     site = fields.ForeignKey(SiteResource, 'site')
     events = fields.ToManyField('handball.api.EventResource', 'events', full=True)
 
@@ -321,6 +309,15 @@ class TeamManagerRelationResource(ModelResource):
             bundle.data['appointed_by'] = user_resource.get_resource_uri(request.user)
 
         return super(TeamManagerRelationResource, self).obj_create(bundle, request)
+
+
+class LeagueLevelResource(ModelResource):
+    class Meta:
+        queryset = LeagueLevel.objects.all()
+        authorization = Authorization()
+        authentication = Authentication()
+        always_return_data = True
+        allowed_methods = ['get']
 
 
 # class LeagueManagerRelationResource(ModelResource):
