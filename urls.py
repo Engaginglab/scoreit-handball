@@ -21,6 +21,7 @@ v1_api.register(TeamCoachRelationResource())
 v1_api.register(ClubManagerRelationResource())
 v1_api.register(TeamManagerRelationResource())
 v1_api.register(LeagueLevelResource())
+v1_api.register(GroupTeamRelationResource())
 
 urlpatterns = patterns('', (r'^', include(v1_api.urls)))
 

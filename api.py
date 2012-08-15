@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from tastypie.resources import ModelResource, ALL_WITH_RELATIONS
+from tastypie.resources import ModelResource, ALL_WITH_RELATIONS, ALL
 from tastypie import fields
 from handball.models import *
 from django.contrib.auth.models import User
@@ -31,7 +31,7 @@ class UnionResource(ModelResource):
 
 
 class DistrictResource(ModelResource):
-    union = fields.ForeignKey(UnionResource, 'union')
+    union = fields.ForeignKey(UnionResource, 'union', full=True)
 
     class Meta:
         queryset = District.objects.all()
@@ -53,8 +53,8 @@ class DistrictResource(ModelResource):
 
 
 class GroupResource(ModelResource):
-    union = fields.ForeignKey(UnionResource, 'union', blank=True, null=True)
-    district = fields.ForeignKey(DistrictResource, 'district', blank=True, null=True)
+    union = fields.ForeignKey(UnionResource, 'union', blank=True, null=True, full=True)
+    district = fields.ForeignKey(DistrictResource, 'district', blank=True, null=True, full=True)
 
     class Meta:
         queryset = Group.objects.all()
@@ -63,7 +63,8 @@ class GroupResource(ModelResource):
         authorization = Authorization()
         filtering = {
             'union': ALL_WITH_RELATIONS,
-            'district': ALL_WITH_RELATIONS
+            'district': ALL_WITH_RELATIONS,
+            'kind': ALL
         }
 
 
@@ -318,6 +319,21 @@ class LeagueLevelResource(ModelResource):
         authentication = Authentication()
         always_return_data = True
         allowed_methods = ['get']
+
+
+class GroupTeamRelationResource(ModelResource):
+    team = fields.ForeignKey(TeamResource, 'team', full=True)
+    group = fields.ForeignKey(GroupResource, 'group', full=True)
+
+    class Meta:
+        queryset = GroupTeamRelation.objects.all()
+        authorization = Authorization()
+        authentication = Authentication()
+        always_return_data = True
+        filtering = {
+            'group': ALL_WITH_RELATIONS,
+            'team': ALL_WITH_RELATIONS
+        }
 
 
 # class LeagueManagerRelationResource(ModelResource):

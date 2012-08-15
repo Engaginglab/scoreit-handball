@@ -59,12 +59,8 @@ class LeagueLevel(models.Model):
     union_specific = models.BooleanField(default=False)
     district_specific = models.BooleanField(default=False)
 
-
-class AgeGroup(models.Model):
-    name = models.CharField(max_length=20)
-
-    min_age = models.IntegerField()
-    max_age = models.IntegerField()
+    def __unicode__(self):
+        return self.name
 
 
 class Group(models.Model):
@@ -81,15 +77,14 @@ class Group(models.Model):
     managers = models.ManyToManyField('Person', blank=True, related_name='groups_managed', through='GroupManagerRelation')
 
     def __unicode__(self):
-        return u'{0}: {1} {2} {3}'.format(self.kind, self.name, self.gender, self.age_group.name)
+        return u'{0}: {1} {2} {3}'.format(self.kind, self.name, self.gender, self.age_group)
 
 
 class GroupTeamRelation(models.Model):
     group = models.ForeignKey('Group')
     team = models.ForeignKey('Team')
 
-    points = models.IntegerField()
-    position = models.IntegerField()
+    score = models.IntegerField(default=0)
 
 
 class Person(models.Model):

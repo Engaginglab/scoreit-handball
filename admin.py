@@ -22,6 +22,11 @@ class GamePlayerInline(admin.TabularInline):
     extra = 1
 
 
+class GroupTeamInline(admin.TabularInline):
+    model = handball.models.GroupTeamRelation
+    extra = 1
+
+
 class PersonAdmin(admin.ModelAdmin):
     inlines = (ClubMemberInline, TeamPlayerInline, TeamCoachInline, GamePlayerInline)
 
@@ -31,7 +36,7 @@ class ClubAdmin(admin.ModelAdmin):
 
 
 class TeamAdmin(admin.ModelAdmin):
-    inlines = (TeamPlayerInline, TeamCoachInline)
+    inlines = (TeamPlayerInline, TeamCoachInline, GroupTeamInline)
 
 
 class GameAdmin(admin.ModelAdmin):
@@ -50,4 +55,3 @@ admin.site.register(handball.models.Event)
 admin.site.register(handball.models.EventType)
 admin.site.register(handball.models.GamePlayerRelation)
 admin.site.register(handball.models.LeagueLevel)
-admin.site.register(handball.models.AgeGroup)
