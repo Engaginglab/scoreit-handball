@@ -152,7 +152,7 @@ class TeamResource(ModelResource):
 
         bundle.data['players'] = []
         resource = PersonResource()
-        for membership in TeamPlayerRelation.objects.filter(player=bundle.obj, manager_confirmed=True):
+        for membership in TeamPlayerRelation.objects.filter(player=bundle.obj, validated=True):
             playerBundle = resource.build_bundle(obj=membership.player, request=bundle.request)
             bundle.data['players'].append(resource.full_dehydrate(playerBundle))
         return bundle
@@ -189,17 +189,9 @@ class GameResource(ModelResource):
         return super(GameResource, self).hydrate_m2m(bundle)
 
 
-class EventTypeResource(ModelResource):
-    class Meta:
-        queryset = EventType.objects.all()
-        authorization = Authorization()
-        authentication = Authentication()
-
-
 class EventResource(ModelResource):
     person = fields.ForeignKey(PersonResource, 'person', full=True)
     game = fields.ForeignKey(GameResource, 'game')
-    event_type = fields.ForeignKey(EventTypeResource, 'event_type')
     team = fields.ForeignKey(TeamResource, 'team')
 
     class Meta:
@@ -220,7 +212,8 @@ class ClubMemberRelationResource(ModelResource):
         always_return_data = True
         filtering = {
             'member': ALL_WITH_RELATIONS,
-            'club': ALL_WITH_RELATIONS
+            'club': ALL_WITH_RELATIONS,
+            'validated': ALL
         }
 
 
@@ -247,7 +240,8 @@ class TeamPlayerRelationResource(ModelResource):
         always_return_data = True
         filtering = {
             'player': ALL_WITH_RELATIONS,
-            'team': ALL_WITH_RELATIONS
+            'team': ALL_WITH_RELATIONS,
+            'validated': ALL
         }
 
 
@@ -262,14 +256,14 @@ class TeamCoachRelationResource(ModelResource):
         always_return_data = True
         filtering = {
             'coach': ALL_WITH_RELATIONS,
-            'team': ALL_WITH_RELATIONS
+            'team': ALL_WITH_RELATIONS,
+            'validated': ALL
         }
 
 
 class ClubManagerRelationResource(ModelResource):
     club = fields.ForeignKey(ClubResource, 'club', full=True)
     manager = fields.ForeignKey(PersonResource, 'manager', full=True)
-    appointed_by = fields.ForeignKey(UserResource, 'appointed_by', null=True, blank=True)
 
     class Meta:
         queryset = ClubManagerRelation.objects.all()
@@ -278,21 +272,14 @@ class ClubManagerRelationResource(ModelResource):
         always_return_data = True
         filtering = {
             'club': ALL_WITH_RELATIONS,
-            'manager': ALL_WITH_RELATIONS
+            'manager': ALL_WITH_RELATIONS,
+            'validated': ALL
         }
-
-    def obj_create(self, bundle, request=None, **kwargs):
-        if request.user:
-            user_resource = UserResource()
-            bundle.data['appointed_by'] = user_resource.get_resource_uri(request.user)
-
-        return super(ClubManagerRelationResource, self).obj_create(bundle, request)
 
 
 class TeamManagerRelationResource(ModelResource):
     team = fields.ForeignKey(TeamResource, 'team', full=True)
     manager = fields.ForeignKey(PersonResource, 'manager', full=True)
-    appointed_by = fields.ForeignKey(UserResource, 'appointed_by', null=True, blank=True)
 
     class Meta:
         queryset = TeamManagerRelation.objects.all()
@@ -301,15 +288,9 @@ class TeamManagerRelationResource(ModelResource):
         always_return_data = True
         filtering = {
             'team': ALL_WITH_RELATIONS,
-            'manager': ALL_WITH_RELATIONS
+            'manager': ALL_WITH_RELATIONS,
+            'validated': ALL
         }
-
-    def obj_create(self, bundle, request=None, **kwargs):
-        if request.user:
-            user_resource = UserResource()
-            bundle.data['appointed_by'] = user_resource.get_resource_uri(request.user)
-
-        return super(TeamManagerRelationResource, self).obj_create(bundle, request)
 
 
 class LeagueLevelResource(ModelResource):
@@ -332,7 +313,8 @@ class GroupTeamRelationResource(ModelResource):
         always_return_data = True
         filtering = {
             'group': ALL_WITH_RELATIONS,
-            'team': ALL_WITH_RELATIONS
+            'team': ALL_WITH_RELATIONS,
+            'validated': ALL
         }
 
 

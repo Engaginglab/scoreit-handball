@@ -45,7 +45,6 @@ class Team(models.Model):
 
     players = models.ManyToManyField('Person', blank=True, related_name='teams', through='TeamPlayerRelation')
     coaches = models.ManyToManyField('Person', blank=True, related_name='teams_coached', through='TeamCoachRelation')
-    # league = models.ForeignKey('League', related_name='league', blank=True)
     club = models.ForeignKey('Club', related_name='teams')
     managers = models.ManyToManyField('Person', blank=True, related_name='teams_managed', through='TeamManagerRelation')
 
@@ -67,6 +66,7 @@ class Group(models.Model):
     name = models.CharField(max_length=50)
     kind = models.CharField(max_length=20, choices=(('league', _('league')), ('cup', _('cup')), ('tournament', _('tournament'))))
     gender = models.CharField(max_length=10, choices=(('male', _('male')), ('female', _('female'))), default='male')
+    validated = models.BooleanField(default=False)
 
     level = models.ForeignKey('LeagueLevel', blank=True, null=True)
     age_group = models.CharField(max_length=20, choices=(('adults', _('adults')), ('juniors_a', _('juniors a')),
@@ -85,6 +85,7 @@ class GroupTeamRelation(models.Model):
     team = models.ForeignKey('Team')
 
     score = models.IntegerField(default=0)
+    validated = models.BooleanField(default=False)
 
 
 class Person(models.Model):
@@ -99,6 +100,7 @@ class Person(models.Model):
     pass_number = models.IntegerField(null=True, blank=True)
     gender = models.CharField(max_length=10, choices=(('male', _('male')), ('female', _('female'))), default='male')
     mobile_number = models.CharField(max_length=20, blank=True)
+    validated = models.BooleanField(default=False)
 
     def __unicode__(self):
         return self.first_name + ' ' + self.last_name
@@ -110,6 +112,9 @@ class Game(models.Model):
     score_home = models.IntegerField()
     score_away = models.IntegerField()
     duration = models.IntegerField(default=60)
+    home_validated = models.BooleanField(default=False)
+    away_validated = models.BooleanField(default=False)
+    referee_validated = models.BooleanField(default=False)
 
     home = models.ForeignKey('Team', related_name='games_home')
     away = models.ForeignKey('Team', related_name='games_away')
@@ -144,84 +149,74 @@ class GamePlayerRelation(models.Model):
 
     team = models.ForeignKey('Team')
     shirt_number = models.IntegerField(blank=True, null=True)
-    # goals = models.IntegerField()
-    # warnings = models.IntegerField()
-    # penalties = models.IntegerField()
-    # disqualifications = models.IntegerField()
-    # team_penalties = models.IntegerField()
-    # penalty_shots_hit = models.IntegerField()
-    # penalty_shots_miss = models.IntegerField()
 
 
 class ClubMemberRelation(models.Model):
     member = models.ForeignKey('Person')
     club = models.ForeignKey('Club')
 
-    primary = models.BooleanField()
-    member_confirmed = models.BooleanField(default=False)
-    manager_confirmed = models.BooleanField(default=False)
+    primary = models.BooleanField(default=False)
+    validated = models.BooleanField(default=False)
 
 
 class TeamPlayerRelation(models.Model):
     player = models.ForeignKey('Person')
     team = models.ForeignKey('Team')
 
-    player_confirmed = models.BooleanField(default=False)
-    manager_confirmed = models.BooleanField(default=False)
+    validated = models.BooleanField(default=False)
 
 
 class TeamCoachRelation(models.Model):
     coach = models.ForeignKey('Person')
     team = models.ForeignKey('Team')
 
-    coach_confirmed = models.BooleanField(default=False)
-    manager_confirmed = models.BooleanField(default=False)
+    validated = models.BooleanField(default=False)
 
 
 class ClubManagerRelation(models.Model):
     club = models.ForeignKey('Club')
     manager = models.ForeignKey('Person')
-    appointed_by = models.ForeignKey(User, related_name='handball_club_managers_appointed', blank=True, null=True)
+
+    validated = models.BooleanField(default=False)
 
 
 class TeamManagerRelation(models.Model):
     team = models.ForeignKey('Team')
     manager = models.ForeignKey('Person')
-    appointed_by = models.ForeignKey(User, related_name='handball_team_managers_appointed', blank=True, null=True)
+
+    validated = models.BooleanField(default=False)
 
 
 class GroupManagerRelation(models.Model):
     group = models.ForeignKey('Group')
     manager = models.ForeignKey('Person')
-    appointed_by = models.ForeignKey(User, related_name='handball_group_managers_appointed', blank=True, null=True)
+
+    validated = models.BooleanField(default=False)
 
 
 class DistrictManagerRelation(models.Model):
     district = models.ForeignKey('District')
     manager = models.ForeignKey('Person')
-    appointed_by = models.ForeignKey(User, related_name='handball_district_managers_appointed', blank=True, null=True)
+
+    validated = models.BooleanField(default=False)
 
 
 class UnionManagerRelation(models.Model):
     union = models.ForeignKey('Union')
     manager = models.ForeignKey('Person')
-    appointed_by = models.ForeignKey(User, related_name='handball_union_managers_appointed', blank=True, null=True)
+
+    validated = models.BooleanField(default=False)
 
 
 class Event(models.Model):
     time = models.IntegerField()
+    event_type = models.CharField(max_length=20, choices=(('goal', _('goal')), ('warning', _('yellow card')),
+        ('disqualification', _('disqualification')), ('time_penalty', _('time penalty')), ('team_time_penalty', _('team time penalty')),
+        ('penalty_shot_goal', _('penalty shot (goal)')), ('penalty_shot_miss', _('penalty shot (miss)'))))
 
     person = models.ForeignKey('Person')
-    event_type = models.ForeignKey('EventType')
     game = models.ForeignKey('Game', related_name='events')
     team = models.ForeignKey('Team')
-
-
-class EventType(models.Model):
-    name = models.CharField(max_length=20)
-
-    def __unicode__(self):
-        return self.name
 
 
 def set_union_by_district(sender, instance, **kwargs):
@@ -256,7 +251,7 @@ def add_player_to_team(sender, instance, created, **kwargs):
 def club_member_to_manager(sender, instance, created, **kwargs):
     managers = ClubManagerRelation.objects.filter(club=instance.club)
     if len(managers) == 0:
-        ClubManagerRelation.objects.create(club=instance.club, manager=instance.member)
+        ClubManagerRelation.objects.create(club=instance.club, manager=instance.member, validated=True)
 
 
 def team_player_to_manager(sender, instance, created, **kwargs):
