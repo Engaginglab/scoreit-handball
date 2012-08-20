@@ -219,68 +219,92 @@ class Event(models.Model):
     team = models.ForeignKey('Team')
 
 
-def set_union_by_district(sender, instance, **kwargs):
+def group_post_save(sender, instance, **kwargs):
     # If district is set, set according union
     if instance.district:
         instance.union = instance.district.union
 
 
-def player_to_club_member(sender, instance, created, **kwargs):
+def team_player_post_save(sender, instance, created, **kwargs):
+    # Add player to club if not member already
     try:
         ClubMemberRelation.objects.get(member=instance.player, club=instance.team.club)
     except ClubMemberRelation.DoesNotExist:
-        ClubMemberRelation.objects.create(member=instance.player, club=instance.team.club,
-            manager_confirmed=instance.manager_confirmed, member_confirmed=instance.player_confirmed)
+        ClubMemberRelation.objects.create(member=instance.player, club=instance.team.club, validated=instance.validated)
 
-
-def coach_to_club_member(sender, instance, created, **kwargs):
-    try:
-        ClubMemberRelation.objects.get(member=instance.coach, club=instance.team.club)
-    except ClubMemberRelation.DoesNotExist:
-        ClubMemberRelation.objects.create(member=instance.coach, club=instance.team.club,
-            manager_confirmed=instance.manager_confirmed, member_confirmed=instance.coach_confirmed)
-
-
-def add_player_to_team(sender, instance, created, **kwargs):
-    try:
-        TeamPlayerRelation.objects.get(team=instance.team, player=instance.player)
-    except TeamPlayerRelation.DoesNotExist:
-        TeamPlayerRelation.objects.create(team=instance.team, player=instance.player, manager_confirmed=True, player_confirmed=True)
-
-
-def club_member_to_manager(sender, instance, created, **kwargs):
-    managers = ClubManagerRelation.objects.filter(club=instance.club)
-    if len(managers) == 0:
-        ClubManagerRelation.objects.create(club=instance.club, manager=instance.member, validated=True)
-
-
-def team_player_to_manager(sender, instance, created, **kwargs):
+    # If first team member, asign as manager
     managers = TeamManagerRelation.objects.filter(team=instance.team)
     if len(managers) == 0:
         TeamManagerRelation.objects.create(team=instance.team, manager=instance.player)
 
 
-def team_coach_to_manager(sender, instance, created, **kwargs):
+def team_coach_post_save(sender, instance, created, **kwargs):
+    # Add coach to club if not member already
+    try:
+        ClubMemberRelation.objects.get(member=instance.coach, club=instance.team.club)
+    except ClubMemberRelation.DoesNotExist:
+        ClubMemberRelation.objects.create(member=instance.coach, club=instance.team.club, validated=instance.validated)
+
+    # If first team member, asign as manager
     managers = TeamManagerRelation.objects.filter(team=instance.team)
     if len(managers) == 0:
         TeamManagerRelation.objects.create(team=instance.team, manager=instance.coach)
 
 
-def club_primary_check(sender, instance, **kwargs):
-    clubs = ClubMemberRelation.objects.filter(member=instance.member)
+def game_player_post_save(sender, instance, created, **kwargs):
+    try:
+        TeamPlayerRelation.objects.get(team=instance.team, player=instance.player)
+    except TeamPlayerRelation.DoesNotExist:
+        TeamPlayerRelation.objects.create(team=instance.team, player=instance.player, validated=True)
 
+
+def club_member_post_save(sender, instance, created, **kwargs):
+    # If first member, make manager
+    managers = ClubManagerRelation.objects.filter(club=instance.club)
+    if len(managers) == 0:
+        ClubManagerRelation.objects.create(club=instance.club, manager=instance.member, validated=True)
+
+    # If first club, make primary
+    clubs = ClubMemberRelation.objects.filter(member=instance.member)
     if len(clubs) == 0:
         instance.primary = True
 
 
+def game_post_save(sender, instance, created, **kwargs):
+    if created:
+        winner_score = 1
+        home_score = winner_score if instance.winner and instance.home.id == instance.winner.id else 0
+        away_score = winner_score if instance.winner and instance.away.id == instance.winner.id else 0
+
+        # Set site as default home site if not set yet
+        if not instance.home.club.home_site:
+            instance.home.club.home_site = instance.site
+            instance.home.club.save()
+
+        # Add teams to group if not already in it,
+        # Add score to winner team
+        try:
+            rel = GroupTeamRelation.objects.get(team=instance.home, group=instance.group)
+            rel.score += home_score
+            rel.save()
+        except GroupTeamRelation.DoesNotExist:
+            GroupTeamRelation.objects.create(team=instance.home, group=instance.group, score=home_score)
+
+        try:
+            rel = GroupTeamRelation.objects.get(team=instance.away, group=instance.group)
+            rel.score += away_score
+            rel.save()
+        except GroupTeamRelation.DoesNotExist:
+            GroupTeamRelation.objects.create(team=instance.away, group=instance.group, score=away_score)
+
+
 # Create API key for a new user
 post_save.connect(create_api_key, sender=User)
-pre_save.connect(set_union_by_district, sender=Group)
-post_save.connect(player_to_club_member, sender=TeamPlayerRelation)
-post_save.connect(coach_to_club_member, sender=TeamCoachRelation)
-post_save.connect(add_player_to_team, sender=GamePlayerRelation)
-post_save.connect(club_member_to_manager, sender=ClubMemberRelation)
-post_save.connect(team_player_to_manager, sender=TeamPlayerRelation)
-post_save.connect(team_coach_to_manager, sender=TeamCoachRelation)
-pre_save.connect(club_primary_check, sender=ClubMemberRelation)
+
+pre_save.connect(group_post_save, sender=Group)
+post_save.connect(team_player_post_save, sender=TeamPlayerRelation)
+post_save.connect(team_coach_post_save, sender=TeamCoachRelation)
+post_save.connect(game_player_post_save, sender=GamePlayerRelation)
+post_save.connect(club_member_post_save, sender=ClubMemberRelation)
+post_save.connect(game_post_save, sender=Game)
 # m2m_changed.connect(set_club_by_team, sender=Team.players.through)
