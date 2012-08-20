@@ -55,6 +55,7 @@ class DistrictResource(ModelResource):
 class GroupResource(ModelResource):
     union = fields.ForeignKey(UnionResource, 'union', blank=True, null=True, full=True)
     district = fields.ForeignKey(DistrictResource, 'district', blank=True, null=True, full=True)
+    level = fields.ForeignKey('handball.api.LeagueLevelResource', 'level', blank=True, null=True, full=True)
 
     class Meta:
         queryset = Group.objects.all()
@@ -64,7 +65,9 @@ class GroupResource(ModelResource):
         filtering = {
             'union': ALL_WITH_RELATIONS,
             'district': ALL_WITH_RELATIONS,
-            'kind': ALL
+            'kind': ALL,
+            'age_group': ALL,
+            'gender': ALL
         }
 
 
@@ -102,6 +105,7 @@ class PersonResource(ModelResource):
 
 class ClubResource(ModelResource):
     district = fields.ForeignKey(DistrictResource, 'district', full=True)
+    home_site = fields.ForeignKey('handball.api.SiteResource', 'home_site', full=True, null=True)
 
     class Meta:
         queryset = Club.objects.all()
