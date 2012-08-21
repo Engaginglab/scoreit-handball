@@ -34,6 +34,7 @@ class Club(models.Model):
     district = models.ForeignKey('District', related_name='clubs')
     members = models.ManyToManyField('Person', related_name='clubs', blank=True, through='ClubMemberRelation')
     managers = models.ManyToManyField('Person', blank=True, related_name='clubs_managed', through='ClubManagerRelation')
+    created_by = models.ForeignKey('Person', blank=True, null=True, related_name='clubs_created')
 
     def __unicode__(self):
         return self.name
@@ -47,6 +48,7 @@ class Team(models.Model):
     coaches = models.ManyToManyField('Person', blank=True, related_name='teams_coached', through='TeamCoachRelation')
     club = models.ForeignKey('Club', related_name='teams')
     managers = models.ManyToManyField('Person', blank=True, related_name='teams_managed', through='TeamManagerRelation')
+    created_by = models.ForeignKey('Person', blank=True, null=True, related_name='teams_created')
 
     def __unicode__(self):
         return self.club.name + ' ' + self.name
@@ -266,8 +268,9 @@ def club_member_post_save(sender, instance, created, **kwargs):
 
     # If first club, make primary
     clubs = ClubMemberRelation.objects.filter(member=instance.member)
-    if len(clubs) == 0:
+    if len(clubs) == 1 and clubs[0].primary == False:
         instance.primary = True
+        instance.save()
 
 
 def game_post_save(sender, instance, created, **kwargs):
