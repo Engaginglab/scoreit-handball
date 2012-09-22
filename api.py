@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
+"""
+    Resources for handball models.
+
+    TODO: Use ApiKeyAuthentication for models that need authentication. Implement custom authorization based on handball graph.
+"""
 
 from tastypie.resources import ModelResource, ALL_WITH_RELATIONS, ALL
 from tastypie import fields
 from handball.models import *
-from django.contrib.auth.models import User
 from tastypie.authorization import DjangoAuthorization, Authorization
 from tastypie.authentication import Authentication, ApiKeyAuthentication
 from django.http import HttpResponse, HttpResponseBadRequest
@@ -15,6 +19,9 @@ from django.core.mail import send_mail
 
 
 class UnionResource(ModelResource):
+    """
+        Resource for Union model
+    """
     class Meta:
         queryset = Union.objects.all()
         allowed_methods = ['get']
@@ -24,13 +31,11 @@ class UnionResource(ModelResource):
             'name': ('exact')
         }
 
-    def obj_create(self, bundle, request=None, **kwargs):
-        # The user to create a union becomes its first manager (for lack of other people)
-        bundle.data['managers'] = ['/handball/api/v1/person/' + str(request.user.get_profile().id) + '/']
-        return super(UnionResource, self).obj_create(bundle, request)
-
 
 class DistrictResource(ModelResource):
+    """
+        Resource for District model
+    """
     union = fields.ForeignKey(UnionResource, 'union', full=True)
 
     class Meta:
@@ -42,17 +47,18 @@ class DistrictResource(ModelResource):
             'union': ALL_WITH_RELATIONS
         }
 
-    def obj_create(self, bundle, request=None, **kwargs):
-        # The user to create a union becomes its first manager (for lack of other people)
-        bundle.data['managers'] = ['/handball/api/v1/person/' + str(request.user.get_profile().id) + '/']
-        return super(DistrictResource, self).obj_create(bundle, request)
-
     def dehydrate(self, bundle):
+        """
+            Insert 'display_name' field for use in UI
+        """
         bundle.data['display_name'] = str(bundle.obj)
         return bundle
 
 
 class GroupResource(ModelResource):
+    """
+        Resource for Group model
+    """
     union = fields.ForeignKey(UnionResource, 'union', blank=True, null=True, full=True)
     district = fields.ForeignKey(DistrictResource, 'district', blank=True, null=True, full=True)
     level = fields.ForeignKey('handball.api.LeagueLevelResource', 'level', blank=True, null=True, full=True)
@@ -72,6 +78,9 @@ class GroupResource(ModelResource):
 
 
 class PersonResource(ModelResource):
+    """
+        Resource for Person model
+    """
     user = fields.OneToOneField(UserResource, 'user', blank=True, null=True, related_name='handball_profile')
 
     class Meta:
@@ -92,6 +101,10 @@ class PersonResource(ModelResource):
         always_return_data = True
 
     def dehydrate(self, bundle):
+        """
+            Insert 'display_name' field for use in UI.
+            'Manually' add clubs since the ManyToMany field is (for various reasons) not specified in the Resource.
+        """
         bundle.data['display_name'] = str(bundle.obj)
 
         bundle.data['clubs'] = []
@@ -104,8 +117,12 @@ class PersonResource(ModelResource):
 
 
 class ClubResource(ModelResource):
+    """
+        Resource for the Club model
+    """
     district = fields.ForeignKey(DistrictResource, 'district', full=True)
     home_site = fields.ForeignKey('handball.api.SiteResource', 'home_site', full=True, null=True)
+    created_by = fields.ForeignKey(PersonResource, 'created_by', null=True)
 
     class Meta:
         queryset = Club.objects.all()
@@ -117,19 +134,32 @@ class ClubResource(ModelResource):
             'managers': ALL_WITH_RELATIONS
         }
 
-    # def obj_create(self, bundle, request=None, **kwargs):
-    #     # The user to create a club becomes its first manager (for lack of other people)
-    #     try:
-    #         person = Person.objects.get(user=request.user)
-    #         person_resource = PersonResource()
-    #         bundle.data['managers'] = [person_resource.get_resource_uri(person)]
-    #     except Person.DoesNotExist:
-    #         pass
-    #     return super(ClubResource, self).obj_create(bundle, request)
+    def obj_create(self, bundle, request=None, **kwargs):
+        """
+            Automatically fill created_by field if there is an authenticated user
+        """
+        bundle = super(TeamResource, self).obj_create(bundle, request)
+
+        if request.user:
+            try:
+                profile = Person.objects.get(user=request.user)
+
+                # Set created_by field
+                bundle.obj.created_by = profile
+
+                bundle.obj.save()
+            except Person.DoesNotExist:
+                pass
+
+        return bundle
 
 
 class TeamResource(ModelResource):
+    """
+        Resource for Team model
+    """
     club = fields.ForeignKey(ClubResource, 'club', full=True)
+    created_by = fields.ForeignKey(PersonResource, 'created_by', null=True)
 
     class Meta:
         queryset = Team.objects.all()
@@ -141,17 +171,37 @@ class TeamResource(ModelResource):
             'managers': ALL_WITH_RELATIONS
         }
 
-    # def obj_create(self, bundle, request=None, **kwargs):
-    #     # The user to create a team becomes its first manager (for lack of other people)
-    #     try:
-    #         person = Person.objects.get(user=request.user)
-    #         person_resource = PersonResource()
-    #         bundle.data['managers'] = [person_resource.get_resource_uri(person)]
-    #     except Person.DoesNotExist:
-    #         pass
-    #     return super(TeamResource, self).obj_create(bundle, request)
+    def obj_create(self, bundle, request=None, **kwargs):
+        """
+            Automatically fill created_by field and instantly validate under certain conditions
+        """
+        bundle = super(TeamResource, self).obj_create(bundle, request)
+
+        if request.user:
+            try:
+                profile = Person.objects.get(user=request.user)
+
+                # Set created_by field
+                bundle.obj.created_by = profile
+
+                try:
+                    # Instantly validate if user is manager of the respective club
+                    ClubManagerRelation.objects.get(manager=profile, club=bundle.obj.club, validated=True)
+                    bundle.obj.validated = True
+                except ClubManagerRelation.DoesNotExist:
+                    pass
+
+                bundle.obj.save()
+            except Person.DoesNotExist:
+                pass
+
+        return bundle
 
     def dehydrate(self, bundle):
+        """
+            Insert 'display_name' field for use in UI.
+            'Manually' add players since the ManyToMany field is (for various reasons) not specified in the Resource.
+        """
         bundle.data['display_name'] = str(bundle.obj)
 
         bundle.data['players'] = []
@@ -163,13 +213,27 @@ class TeamResource(ModelResource):
 
 
 class SiteResource(ModelResource):
+    """
+        Resource for Site model
+    """
     class Meta:
         queryset = Site.objects.all()
         authorization = Authorization()
         authentication = Authentication()
+        always_return_data = True
+
+    def dehydrate(self, bundle):
+        """
+            Add display_name for user in UI
+        """
+        bundle.data['display_name'] = str(bundle.obj)
+        return bundle
 
 
 class GameResource(ModelResource):
+    """
+        Resource for the Game model
+    """
     home = fields.ForeignKey(TeamResource, 'home')
     away = fields.ForeignKey(TeamResource, 'away')
     referee = fields.ForeignKey(PersonResource, 'referee')
@@ -188,12 +252,18 @@ class GameResource(ModelResource):
         always_return_data = True
 
     def hydrate_m2m(self, bundle):
+        """
+            For some reason tastypie does not correctly create ManyToMany relations. This is a simple fix for that.
+        """
         for item in bundle.data['events']:
             item[u'game'] = self.get_resource_uri(bundle)
         return super(GameResource, self).hydrate_m2m(bundle)
 
 
 class EventResource(ModelResource):
+    """
+        Resource for the Event model
+    """
     person = fields.ForeignKey(PersonResource, 'person', full=True)
     game = fields.ForeignKey(GameResource, 'game')
     team = fields.ForeignKey(TeamResource, 'team')
@@ -206,13 +276,16 @@ class EventResource(ModelResource):
 
 
 class ClubMemberRelationResource(ModelResource):
+    """
+        Resource for the ClubMemberRelation model
+    """
     club = fields.ForeignKey(ClubResource, 'club', full=True)
     member = fields.ForeignKey(PersonResource, 'member', full=True)
 
     class Meta:
         queryset = ClubMemberRelation.objects.all()
         authorization = Authorization()
-        authentication = Authentication()
+        authentication = ApiKeyAuthentication()
         always_return_data = True
         filtering = {
             'member': ALL_WITH_RELATIONS,
@@ -220,8 +293,33 @@ class ClubMemberRelationResource(ModelResource):
             'validated': ALL
         }
 
+    def obj_create(self, bundle, request=None, **kwargs):
+        """
+            Instantly validate relation under certain condititions
+        """
+        bundle = super(ClubMemberRelationResource, self).obj_create(bundle, request)
+
+        if request.user:
+            try:
+                profile = Person.objects.get(user=request.user)
+
+                # Instantly validate if user is a manager or member of the respective club
+                managers = ClubManagerRelation.objects.filter(manager=profile, club=bundle.obj.club, validated=True)
+                members = ClubMemberRelation.objects.filter(member=profile, club=bundle.obj.club, validated=True)
+
+                if (len(managers) or len(members)):
+                    bundle.obj.validated = True
+                    bundle.obj.save()
+            except Person.DoesNotExist:
+                pass
+
+        return bundle
+
 
 class GamePlayerRelationResource(ModelResource):
+    """
+        Resource for GamePlayerRelation resource
+    """
     game = fields.ForeignKey(GameResource, 'game', full=True)
     player = fields.ForeignKey(PersonResource, 'player', full=True)
     team = fields.ForeignKey(TeamResource, 'team')
@@ -234,13 +332,16 @@ class GamePlayerRelationResource(ModelResource):
 
 
 class TeamPlayerRelationResource(ModelResource):
+    """
+        Resource for TeamPlayerRelation resource
+    """
     team = fields.ForeignKey(TeamResource, 'team', full=True)
     player = fields.ForeignKey(PersonResource, 'player', full=True)
 
     class Meta:
         queryset = TeamPlayerRelation.objects.all()
         authorization = Authorization()
-        authentication = Authentication()
+        authentication = ApiKeyAuthentication()
         always_return_data = True
         filtering = {
             'player': ALL_WITH_RELATIONS,
@@ -248,8 +349,34 @@ class TeamPlayerRelationResource(ModelResource):
             'validated': ALL
         }
 
+    def obj_create(self, bundle, request=None, **kwargs):
+        """
+            Instantly validate relation under certain conditions
+        """
+        bundle = super(TeamPlayerRelationResource, self).obj_create(bundle, request)
+
+        if request.user:
+            try:
+                profile = Person.objects.get(user=request.user)
+
+                club_managers = ClubManagerRelation.objects.filter(manager=profile, club=bundle.obj.team.club, validated=True)
+                team_managers = TeamManagerRelation.objects.filter(manager=profile, team=bundle.obj.team, validated=True)
+                players = TeamPlayerRelation.objects.filter(player=profile, team=bundle.obj.team, validated=True)
+                coaches = TeamCoachRelation.objects.filter(coach=profile, team=bundle.obj.team, validated=True)
+
+                if (len(club_managers) or len(team_managers) or len(players) or len(coaches)):
+                    bundle.obj.validated = True
+                    bundle.obj.save()
+            except Person.DoesNotExist:
+                pass
+
+        return bundle
+
 
 class TeamCoachRelationResource(ModelResource):
+    """
+        Resource for TeamCoachRelation model
+    """
     team = fields.ForeignKey(TeamResource, 'team', full=True)
     coach = fields.ForeignKey(PersonResource, 'coach', full=True)
 
@@ -264,8 +391,33 @@ class TeamCoachRelationResource(ModelResource):
             'validated': ALL
         }
 
+    def obj_create(self, bundle, request=None, **kwargs):
+        """
+            Instantly validate relation under certain conditions
+        """
+        bundle = super(TeamCoachRelationResource, self).obj_create(bundle, request)
+
+        if request.user:
+            try:
+                profile = Person.objects.get(user=request.user)
+
+                club_managers = ClubManagerRelation.objects.filter(manager=profile, club=bundle.obj.team.club, validated=True)
+                managers = TeamManagerRelation.objects.filter(manager=profile, team=bundle.obj.team, validated=True)
+                coaches = TeamCoachRelation.objects.filter(coach=profile, team=bundle.obj.team, validated=True)
+
+                if (len(managers) or len(club_managers) or len(coaches)):
+                    bundle.obj.validated = True
+                    bundle.obj.save()
+            except Person.DoesNotExist:
+                pass
+
+        return bundle
+
 
 class ClubManagerRelationResource(ModelResource):
+    """
+        Resource for ClubManagerRelation model
+    """
     club = fields.ForeignKey(ClubResource, 'club', full=True)
     manager = fields.ForeignKey(PersonResource, 'manager', full=True)
 
@@ -280,8 +432,31 @@ class ClubManagerRelationResource(ModelResource):
             'validated': ALL
         }
 
+    def obj_create(self, bundle, request=None, **kwargs):
+        """
+            Instantly validate under certain conditions
+        """
+        bundle = super(ClubManagerRelationResource, self).obj_create(bundle, request)
+
+        if request.user:
+            try:
+                profile = Person.objects.get(user=request.user)
+
+                # Instantly validate if user is a manager of the respective club
+                ClubManagerRelation.objects.get(manager=profile, club=bundle.obj.club, validated=True)
+                bundle.obj.validated = True
+
+                bundle.obj.save()
+            except (Person.DoesNotExist, ClubManagerRelation.DoesNotExist):
+                pass
+
+        return bundle
+
 
 class TeamManagerRelationResource(ModelResource):
+    """
+        Resource for TeamManagerRelation resource
+    """
     team = fields.ForeignKey(TeamResource, 'team', full=True)
     manager = fields.ForeignKey(PersonResource, 'manager', full=True)
 
@@ -296,8 +471,31 @@ class TeamManagerRelationResource(ModelResource):
             'validated': ALL
         }
 
+    def obj_create(self, bundle, request=None, **kwargs):
+        """
+            Instantly validate relation under certain conditions
+        """
+        bundle = super(TeamManagerRelationResource, self).obj_create(bundle, request)
+
+        if request.user:
+            try:
+                profile = Person.objects.get(user=request.user)
+
+                # Instantly validate if user is a manager of the respective team
+                TeamManagerRelation.objects.get(manager=profile, team=bundle.obj.team, validated=True)
+                bundle.obj.validated = True
+
+                bundle.obj.save()
+            except (Person.DoesNotExist, TeamManagerRelation.DoesNotExist):
+                pass
+
+        return bundle
+
 
 class LeagueLevelResource(ModelResource):
+    """
+        Resource for LeagueLevel model
+    """
     class Meta:
         queryset = LeagueLevel.objects.all()
         authorization = Authorization()
@@ -307,6 +505,9 @@ class LeagueLevelResource(ModelResource):
 
 
 class GroupTeamRelationResource(ModelResource):
+    """
+        Resource for GroupTeamRelation resource
+    """
     team = fields.ForeignKey(TeamResource, 'team', full=True)
     group = fields.ForeignKey(GroupResource, 'group', full=True)
 
@@ -322,69 +523,15 @@ class GroupTeamRelationResource(ModelResource):
         }
 
 
-# class LeagueManagerRelationResource(ModelResource):
-#     league = fields.ForeignKey(LeagueResource, 'league', full=True)
-#     manager = fields.ForeignKey(PersonResource, 'manager', full=True)
-
-#     class Meta:
-#         queryset = LeagueManagerRelation.objects.all()
-#         authorization = Authorization()
-#         authentication = Authentication()
-#         always_return_data = True
-#         filtering = {
-#             'league': ALL_WITH_RELATIONS,
-#             'manager': ALL_WITH_RELATIONS
-#         }
-
-
-# class DistrictManagerRelationResource(ModelResource):
-#     district = fields.ForeignKey(DistrictResource, 'club', full=True)
-#     manager = fields.ForeignKey(PersonResource, 'manager', full=True)
-
-#     class Meta:
-#         queryset = DistrictManagerRelation.objects.all()
-#         authorization = Authorization()
-#         authentication = Authentication()
-#         always_return_data = True
-#         filtering = {
-#             'district': ALL_WITH_RELATIONS,
-#             'manager': ALL_WITH_RELATIONS
-#         }
-
-
-# class UnionManagerRelationResource(ModelResource):
-#     union = fields.ForeignKey(ClubResource, 'union', full=True)
-#     manager = fields.ForeignKey(PersonResource, 'manager', full=True)
-
-#     class Meta:
-#         queryset = ClubManagerRelation.objects.all()
-#         authorization = Authorization()
-#         authentication = Authentication()
-#         always_return_data = True
-#         filtering = {
-#             'union': ALL_WITH_RELATIONS,
-#             'manager': ALL_WITH_RELATIONS
-#         }
-
-
-class SiteResource(ModelResource):
-    class Meta:
-        queryset = Site.objects.all()
-        authorization = Authorization()
-        authentication = Authentication()
-        always_return_data = True
-
-    def dehydrate(self, bundle):
-        bundle.data['display_name'] = str(bundle.obj)
-        return bundle
-
-
 """
 Non-resource api endpoints
 """
 
 
 def is_unique(request):
+    """
+        Check if pass number already exists
+    """
     data = {}
 
     if 'pass_number' in request.GET:
@@ -408,6 +555,9 @@ def is_unique(request):
 
 
 def send_invitation(request):
+    """
+        Send an invitation to another person via email. NOT TESTED YET
+    """
     if request.user.is_authenticated() and request.user.is_active:
         if 'email' in request.POST:
             email = request.POST['email']
@@ -417,7 +567,7 @@ def send_invitation(request):
         if 'message' in request.POST:
             message = request.POST['message']
         else:
-            message = 'Tritt Score.it bei und sehe deine Handballergebnisse online!'
+            message = 'Tritt score.it bei und sehe deine Handballergebnisse online!'
 
         profile = None
         if 'profile' in request.POST:
